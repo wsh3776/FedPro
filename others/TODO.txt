@@ -1,0 +1,34 @@
+1. 接收参数utils.args
+2. 发送到server
+3. 发送到client
+4. client进行训练
+5. 发送参数到server
+6. 模型进行联邦聚合
+
+
+3.17 
+中午
+1.把自定义数据集加载进来
+2.写一下average这个函数
+3.用一个cnn模型跑跑看
+
+
+3.19
+1. 完整train_dataloader, test_dataloader的添加
+2. 在自己写框架的过程中，发现了很多之前没有注意到问题，和tdye讨论了这些问题，学到了不少。
+
+
+3.20
+上午
+1. 函数注释风格
+2. 完成client test部分
+
+
+下午
+1. 试一下如果不联邦，集中式要怎么做，所有数据放在一起是怎么准确度
+
+2. 添加gpu加速支持，我的电脑有gpu的
+
+3. 添加summary writer, tensorboard
+
+4. 导入MNIST数据集，进行数据划分，预处理
