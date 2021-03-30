@@ -2,21 +2,23 @@ from models.fedavg.MNIST import MNIST
 import torch
 import torch.optim as optim
 import torch.nn as nn
+import copy
 
 
 class Client():
     def __init__(self, user_id, train_dataloader=None, test_dataloader=None,
-                 model_name: str = "mnist", epoch=10, lr=0.01):
+                 model_name: str = "cnn", epoch=10, lr=0.01, device='cpu'):
         self.user_id = user_id
         self.train_dataLoader = train_dataloader
         self.test_dataLoader = test_dataloader
         self.model = self.select_model(model_name)  # 创建本地模型
         self.epoch = epoch
         self.lr = lr
+        self.device = device
 
     def select_model(self, model_name):
         model = None
-        if model_name == 'mnist':
+        if model_name == 'cnn':
             model = MNIST()
         return model
 
@@ -27,9 +29,11 @@ class Client():
         # print("update local dataset")
 
     def set_params(self, model_params):
+        # load_state_dict is deepcopy
         self.model.load_state_dict(model_params)
 
     def get_params(self):
+        # params = model.state_dict() is shadow copy
         return self.model.cpu().state_dict()
 
     def train(self):
@@ -38,24 +42,31 @@ class Client():
         :return:
         """
         model = self.model
+        # model.to(device=self.device)
         criterion = nn.CrossEntropyLoss(reduction='mean')
         optimizer = optim.SGD(model.parameters(), lr=self.lr, momentum=0.9)
 
         batch_loss = []
         for epoch in range(self.epoch):
             for i, (inputs, labels) in enumerate(self.train_dataLoader, 0):
+                inputs = inputs.to(self.device)
+                labels = labels.to(self.device)
                 optimizer.zero_grad()
                 outputs = model(inputs)
                 loss = criterion(outputs, labels)  # loss是对每个样本的loss做了平均
                 batch_loss.append(loss)
                 loss.backward()
                 optimizer.step()
+                if i % 300 == 0:
+                    print(i, " : " , loss)
 
         # 这个客户端上一个样本的平均loss
         sample_loss = sum(batch_loss) / len(batch_loss)
 
         # 返回训练好的参数和该客户端数据个数
-        return self.get_params(), self.train_dataLoader.sampler.num_samples, sample_loss
+        return self.get_params(), \
+               self.train_dataLoader.sampler.num_samples, \
+               sample_loss
 
     def test(self, dataset: str):
         """
@@ -82,9 +93,12 @@ class Client():
         client_num = 0
         batch_loss = []
         model = self.model
+        model.to(self.device)
         with torch.no_grad():
             for data in dataloader:
                 images, labels = data
+                images = images.to(self.device)
+                labels = labels.to(self.device)
                 outputs = model(images)
                 loss = criterion(outputs, labels)
                 _, predicted = torch.max(outputs.data, 1)

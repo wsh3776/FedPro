@@ -1,9 +1,8 @@
-import torch
 import numpy as np
 from algorithm.fedavg.client import Client
-import copy
 
-from data.demo_data import demoData
+from preprocess.demo_dataset import demoData  # 这个其实应该放到
+from preprocess.MNIST.MNSIT_DATASET import MNIST_Centralized
 from models.fedavg.MNIST import MNIST
 
 
@@ -22,6 +21,7 @@ class Server():
         self.eval_interval = args.eval_interval
         self.selected_clients_idx = []
         self.clients = []
+        self.device = args.device
         # use client_num_per_round models to train all data
         # 设置k个模型来训练每轮被选择的K个客户端
         self.surrogate = self.setup_surrogate()
@@ -33,7 +33,7 @@ class Server():
 
     def select_model(self, model_name):
         model = None
-        if model_name == 'mnist':
+        if model_name == 'cnn':
             model = MNIST()
         return model
 
@@ -41,6 +41,8 @@ class Server():
     def get_dataloader(self):
         if self.dataset == "demo":
             train_dataloader, test_dataloader = demoData()
+        elif self.dataset == "MNIST":
+            train_dataloader, test_dataloader = MNIST_Centralized(self.batch_size)
         return train_dataloader, test_dataloader
 
     def select_clients(self, round_th):
@@ -69,8 +71,9 @@ class Server():
         """
         # Client need to update the dataset and params
         surrogate = [Client(user_id=i, train_dataloader=None, test_dataloader=None,
-                            model_name=self.model_name, epoch=self.epoch, lr=self.lr)
+                            model_name=self.model_name, epoch=self.epoch, lr=self.lr, device=self.device)
                      for i in range(self.client_num_per_round)]
+        # print(surrogate[0].model)
         return surrogate
 
     def aggrerate(self):
@@ -91,6 +94,7 @@ class Server():
         print("Begin Federating!")
         print(f"Training among {self.client_num_in_total} clients!")
 
+        # TODO: 这里train和test两个功能应该包裹成两个函数，不要写在一起
         for t in range(self.num_rounds):
             """
             server-client communication round t
@@ -100,11 +104,13 @@ class Server():
             self.updates = []  # 每轮通信清空这个updates
             for k in range(self.client_num_per_round):
                 # 训练时只把参数发给被选中的客户端
+                print()
                 surrogate = self.surrogate[k]  # 放到第k个槽位上
                 surrogate.update_local_dataset(self.clients[selected_clients_index[k]])  # update datasets and params
                 surrogate.set_params(self.global_params)
                 # 得到参数，这里的sample_loss其实没什么用，因为我们还没有更新全局模型
-                local_params, train_data_num, sample_loss = surrogate.train()
+                local_params, train_data_num, sample_loss \
+                    = surrogate.train()
                 self.updates.append((local_params, train_data_num))
 
             # average params
@@ -113,7 +119,7 @@ class Server():
             # 间隔多久用当前的全局模型参数做一次所有训练集和测试集的测试
             # 测试时要把参数发给所有的客户端
             if t % self.eval_interval == 0:
-                print("-"*40, "\n")
+                print("-" * 40, "\n")
                 print(f"Round {t}")
 
                 # eval on train data
@@ -128,10 +134,9 @@ class Server():
                 avg_loss_all = self.avg_metric(loss_list)
                 print(f"[TEST] Avg acc: {avg_acc_all * 100:.3f}%, Avg loss: {avg_loss_all:.5f}")
 
-
         # update global model params
 
-    def eval_model(self, dataset='test'):
+    def eval_model(self, dataset: str = 'test'):
         """
         用当前的全局模型评估所有客户端训练集or测试集上的准确率和损失值
 
@@ -145,16 +150,17 @@ class Server():
         acc_list = []
         loss_list = []
         for k in range(self.client_num_in_total):
-            surrogate = self.surrogate[k % self.client_num_per_round] # 放到槽位上去算
+            surrogate = self.surrogate[k % self.client_num_per_round]  # 放到槽位上去算
             surrogate.update_local_dataset(self.clients[k])  # update dataset and params
             surrogate.set_params(self.global_params)
+
             client_num, accuracy, avg_loss = surrogate.test(dataset=dataset)  # 在本地模型上进行测试
             acc_list.append((client_num, accuracy))
             loss_list.append((client_num, avg_loss))
 
         return acc_list, loss_list
 
-    @staticmethod # https://blog.csdn.net/qq_28805371/article/details/103248194
+    @staticmethod
     def avg_metric(metric_list):
         total_num = 0
         total_metric = 0
@@ -163,4 +169,3 @@ class Server():
             total_metric += metric * client_num
         avg_metric = total_metric / total_num
         return avg_metric
-

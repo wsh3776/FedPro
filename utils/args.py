@@ -39,6 +39,9 @@ def parse_args():
     parser.add_argument('--seed', type=int, default=1, metavar='S',
                         help='seed for random select client')
 
+    parser.add_argument('--device', type=str, default='cuda', metavar='DV',
+                        help='the device to your training (default: cuda)')
+
     parser.add_argument('--note', type=str, default='smile', metavar='NT',
                         help='remark information')
 

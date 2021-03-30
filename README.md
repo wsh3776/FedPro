@@ -1,3 +1,5 @@
+> If there are any recommendations or changes you would like to see in my repository, please leave an issue, I will be glad to answer any questions you may have in the issues. If you like this repository, Please star it.
+
 # Awesome Federated Learning Resources [![Awesome](https://awesome.re/badge.svg)](https://awesome.re)
 
 A list of resources releated to federated learning research.
@@ -15,6 +17,7 @@ for Federated Learning Resources
 - Tensorflow Federated https://www.tensorflow.org/federated
 - Flower https://flower.dev/
 - Fed101 [https://github.com/tdye24/Fed101](https://github.com/tdye24/Fed101)
+- LightFed [https://gitee.com/995770513/LightFed](https://gitee.com/995770513/LightFed)
 
 # Related Awesome Resources
 
