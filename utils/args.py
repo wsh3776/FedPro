@@ -1,3 +1,6 @@
+"""
+这个模块没有必要存在，因为比较好的参数设置是每个算法对应一套参数，不要像下面这样共有参数列表
+"""
 import argparse
 
 # Optional Datasets

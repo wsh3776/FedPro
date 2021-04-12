@@ -100,7 +100,7 @@ cnt = 0
 interval = 5000
 print(trainloader)
 # if __name__ == '__main__':
-for epoch in range(12):  # 训练6个epoch
+for epoch in range(1):  # 训练6个epoch
     running_loss = 0.0
     # trainloader每次读取4张图片, 15000个batch
     for i, data in enumerate(iterable=trainloader, start=0):

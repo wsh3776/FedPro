@@ -1,8 +1,9 @@
 import numpy as np
 from algorithm.fedavg.client import Client
+import wandb
 
-from preprocess.demo_dataset import demoData  # 这个其实应该放到
-from preprocess.MNIST.MNSIT_DATASET import MNIST_Centralized
+from data_preprocessing.dummy_data import dummyData  # 这个其实应该放到
+from data_preprocessing.MNIST.MNSIT_DATASET import MNIST_Centralized
 from models.fedavg.MNIST import MNIST
 
 
@@ -16,12 +17,12 @@ class Server():
         self.lr = args.lr
         self.batch_size = args.batch_size
         self.epoch = args.epoch
+        self.eval_interval = args.eval_interval
         self.seed = args.seed
         self.note = args.note
-        self.eval_interval = args.eval_interval
+        self.device = args.device
         self.selected_clients_idx = []
         self.clients = []
-        self.device = args.device
         # use client_num_per_round models to train all data
         # 设置k个模型来训练每轮被选择的K个客户端
         self.surrogate = self.setup_surrogate()
@@ -39,10 +40,13 @@ class Server():
 
     # TODO: load data
     def get_dataloader(self):
-        if self.dataset == "demo":
-            train_dataloader, test_dataloader = demoData()
-        elif self.dataset == "MNIST":
+        if self.dataset == "dummy":
+            train_dataloader, test_dataloader = dummyData()
+        elif self.dataset == "mnist":
             train_dataloader, test_dataloader = MNIST_Centralized(self.batch_size)
+
+        # 如果想跑集中式，我只要把参数并在一起就行了
+        # if self.centralized==True:
         return train_dataloader, test_dataloader
 
     def select_clients(self, round_th):
@@ -104,7 +108,6 @@ class Server():
             self.updates = []  # 每轮通信清空这个updates
             for k in range(self.client_num_per_round):
                 # 训练时只把参数发给被选中的客户端
-                print()
                 surrogate = self.surrogate[k]  # 放到第k个槽位上
                 surrogate.update_local_dataset(self.clients[selected_clients_index[k]])  # update datasets and params
                 surrogate.set_params(self.global_params)
@@ -127,12 +130,13 @@ class Server():
                 avg_acc_all = self.avg_metric(acc_list)
                 avg_loss_all = self.avg_metric(loss_list)
                 print(f"[TRAIN] Avg acc: {avg_acc_all * 100:.3f}%, Avg loss: {avg_loss_all:.5f}")
-
+                wandb.log({"Train/acc": avg_acc_all * 100, "round": t})
                 # eval on test data
                 acc_list, loss_list = self.eval_model(dataset='test')
                 avg_acc_all = self.avg_metric(acc_list)
                 avg_loss_all = self.avg_metric(loss_list)
                 print(f"[TEST] Avg acc: {avg_acc_all * 100:.3f}%, Avg loss: {avg_loss_all:.5f}")
+                wandb.log({"Test/acc": avg_acc_all * 100, "round": t})
 
         # update global model params
 

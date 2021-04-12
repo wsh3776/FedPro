@@ -44,10 +44,11 @@ class Client():
         model = self.model
         # model.to(device=self.device)
         criterion = nn.CrossEntropyLoss(reduction='mean')
-        optimizer = optim.SGD(model.parameters(), lr=self.lr, momentum=0.9)
+        optimizer = optim.SGD(model.parameters(), lr=self.lr)
 
         batch_loss = []
         for epoch in range(self.epoch):
+            print(f"****Epoch: {epoch + 1}****")
             for i, (inputs, labels) in enumerate(self.train_dataLoader, 0):
                 inputs = inputs.to(self.device)
                 labels = labels.to(self.device)
@@ -58,7 +59,7 @@ class Client():
                 loss.backward()
                 optimizer.step()
                 if i % 300 == 0:
-                    print(i, " : " , loss)
+                    print(f"this is {i}th batch loss: {loss.item():.6f}")
 
         # 这个客户端上一个样本的平均loss
         sample_loss = sum(batch_loss) / len(batch_loss)

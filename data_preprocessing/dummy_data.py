@@ -3,7 +3,7 @@ from torch.utils.data import TensorDataset, DataLoader
 import numpy as np
 
 
-def demoData():
+def dummyData():
     # 这里的随机性已经被fedavg_main.py中的seed固定了
     X = np.random.randn(300, 1, 28, 28)  # ndarray
     Y = np.random.randint(10, size=300)  # label = [0,1,...,9]

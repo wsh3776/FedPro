@@ -4,7 +4,7 @@ MovieLens 1M 数据集处理示范
 """
 import pandas as pd
 
-path = r'../data/MovieLens/1m'
+path = r'../../data/MovieLens/1m'
 
 # users information
 unames = ['user_id', 'gender', 'age', 'occupation', 'zip']

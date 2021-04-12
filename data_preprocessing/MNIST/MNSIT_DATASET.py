@@ -25,7 +25,7 @@ testset = torchvision.datasets.MNIST(root='../../data/', train=False, download=T
 classes = ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9')
 
 
-def MNIST_Centralized(batch_size=10):
+def MNIST_Centralized(batch_size=32):
     """
     centralized: --client_num_in_total 1, --client_num_per_round 1
     """

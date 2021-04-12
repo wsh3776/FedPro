@@ -64,7 +64,7 @@ kunkun:如何分客户端，把数据集按标签划分，然后每个客户端�
 
 client信息为什么还是会打印出来
 
-2021/3/28 框架完善任务
+# 2021/3/28 框架完善任务
 
 1. 试一下return self，然后去改写
   surrogate.update_local_dataset(self.clients[selected_clients_index[k]])  # update datasets and params
@@ -83,3 +83,30 @@ client信息为什么还是会打印出来
 一个函数里面不要写太多的功能，比如下面的federate函数，里面的train和test两个功能应该写成两个函数。一般来说一个函数的代码不要超过30行，这样阅读起来比较舒服。
 
 
+# 2021/4/9
+1. 下载movielens-1M数据集
+
+
+# 2021/4/11
+pandas data.loc[i,genre] = 1这一步非常慢（100万数据），怎么解决？保存成csv吗
+
+
+分别处理users、movies、ratings等表格，最后再看情况要不要合并
+添加year这一列，处理dataframe确实很慢
+
+
+把集中式、iid、non-idd这几种情况整合一下
+centralized = True if args.client_num_in_total == 1 else False
+
+增加tqdm
+
+每次选一个客户端等于集中式吗？（是的）
+
+optimization里面加上正则化, dropout
+
+添加参数sgd，adam
+
+
+1. movielens 评分改成0-1，划分数据集，另外使用lr训练
+
+2. 把数据集移到服务器上面，后续开始变得很大了

@@ -1,5 +1,6 @@
 """
 这个文件是处理movielens-1m数据集的
+在别的模块可以直接用from dataset-1m import users, movies, ratings, all_data的方式导入
 """
 import pandas as pd
 from tqdm import tqdm
@@ -106,14 +107,13 @@ ratings = pd.read_table(f'{path}/ratings.dat', sep='::', header=None, names=rnam
 # Note: 不要上来就把三个表格合并，要把三个表格先分别处理好，如onehot，不然后续处理都是100万条数据了
 # 跨越三个表格分析数据并不是一件简单的事情，而将所有表格合并到单个表中会容易很多
 # If you merge all three tables into one table, Data analysis will become easier
-data = pd.merge(pd.merge(ratings, users), movies)
+all_data = pd.merge(pd.merge(ratings, users), movies)
 
 if __name__ == '__main__':
-    print(data.head())
+    print(all_data.head())
     print()
-    print(data.columns)
+    print(all_data.columns)
 
     # 把处理好的数据保存到csv文件里
     # data.to_csv("movielens-1m-data.csv", index=0)  # index=0不保存行索引, head=0不保存行索引
-
     print("Proprocessing End!")
