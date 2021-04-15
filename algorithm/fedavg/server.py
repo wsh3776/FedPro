@@ -2,40 +2,46 @@ import numpy as np
 from algorithm.fedavg.client import Client
 import wandb
 
-from data_preprocessing.dummy_data import dummyData  # 这个其实应该放到
-from data_preprocessing.MNIST.MNSIT_DATASET import MNIST_Centralized
-from models.fedavg.MNIST import MNIST
+from data_preprocessing.dummy_data import DummyData  # 这个其实应该放到
+from data_preprocessing.mnist.mnist_dataset import MNIST_Centralized
+from data_preprocessing.ctr.movielens.data_loader import partition_data as partition_data_ctr_movielens
+from models.fedavg.mnist import MNIST
+from models.fedavg.lr import LogisticRegression
 
 
 class Server():
     def __init__(self, args):
         self.model_name = args.model
         self.dataset = args.dataset
-        self.client_num_in_total = args.client_num_in_total
-        self.client_num_per_round = args.client_num_per_round
+        self.client_num_in_total = args.client_num_in_total \
+            if args.partition_method != "centralized" else 1
+        self.client_num_per_round = args.client_num_per_round \
+            if args.partition_method != "centralized" else 1
         self.num_rounds = args.num_rounds
+        self.partition_method = args.partition_method
         self.lr = args.lr
         self.batch_size = args.batch_size
         self.epoch = args.epoch
         self.eval_interval = args.eval_interval
         self.seed = args.seed
-        self.note = args.note
         self.device = args.device
         self.selected_clients_idx = []
         self.clients = []
+        self.model = self.select_model(self.model_name)  # 创建对应的模型
         # use client_num_per_round models to train all data
         # 设置k个模型来训练每轮被选择的K个客户端
-        self.surrogate = self.setup_surrogate()
+        self.surrogate = self.setup_surrogate()  # 会用到self.model
         # Add datasets into each client: self.clients
         self.clients = self.setup_clients()
-        self.model = self.select_model(self.model_name)  # 创建对应的模型
         self.global_params = self.model.state_dict()  # 设置为全局模型的参数
         self.updates = []
 
     def select_model(self, model_name):
         model = None
-        if model_name == 'cnn':
+        if model_name == 'cnn_mnist':
             model = MNIST()
+        elif model_name == 'lr_ctr':
+            model = LogisticRegression(input_dim=42, output_dim=5)
         return model
 
     # TODO: load data
@@ -44,7 +50,8 @@ class Server():
             train_dataloader, test_dataloader = dummyData()
         elif self.dataset == "mnist":
             train_dataloader, test_dataloader = MNIST_Centralized(self.batch_size)
-
+        elif self.dataset == "ctr_movielens":
+            train_dataloader, test_dataloader = partition_data_ctr_movielens(self.partition_method, self.batch_size)
         # 如果想跑集中式，我只要把参数并在一起就行了
         # if self.centralized==True:
         return train_dataloader, test_dataloader
@@ -75,7 +82,7 @@ class Server():
         """
         # Client need to update the dataset and params
         surrogate = [Client(user_id=i, train_dataloader=None, test_dataloader=None,
-                            model_name=self.model_name, epoch=self.epoch, lr=self.lr, device=self.device)
+                            model=self.model, epoch=self.epoch, lr=self.lr, device=self.device)
                      for i in range(self.client_num_per_round)]
         # print(surrogate[0].model)
         return surrogate
@@ -112,6 +119,7 @@ class Server():
                 surrogate.update_local_dataset(self.clients[selected_clients_index[k]])  # update datasets and params
                 surrogate.set_params(self.global_params)
                 # 得到参数，这里的sample_loss其实没什么用，因为我们还没有更新全局模型
+                # 本地训练 local train
                 local_params, train_data_num, sample_loss \
                     = surrogate.train()
                 self.updates.append((local_params, train_data_num))
@@ -122,7 +130,8 @@ class Server():
             # 间隔多久用当前的全局模型参数做一次所有训练集和测试集的测试
             # 测试时要把参数发给所有的客户端
             if t % self.eval_interval == 0:
-                print("-" * 40, "\n")
+                print()
+                print("-" * 40)
                 print(f"Round {t}")
 
                 # eval on train data
@@ -137,6 +146,8 @@ class Server():
                 avg_loss_all = self.avg_metric(loss_list)
                 print(f"[TEST] Avg acc: {avg_acc_all * 100:.3f}%, Avg loss: {avg_loss_all:.5f}")
                 wandb.log({"Test/acc": avg_acc_all * 100, "round": t})
+                print("-" * 40)
+                print()
 
         # update global model params
 

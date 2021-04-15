@@ -104,9 +104,80 @@ centralized = True if args.client_num_in_total == 1 else False
 
 optimization里面加上正则化, dropout
 
-添加参数sgd，adam
 
 
-1. movielens 评分改成0-1，划分数据集，另外使用lr训练
+1. movielens 评分改成0-1使用lr训练
 
 2. 把数据集移到服务器上面，后续开始变得很大了
+
+3. 添加参数sgd，adam +
+添加data_settings集中式、iid、non-iid
+def partition_data
+
+今天的主要任务
+if partition == "centralized"
+elif partition == "homo"
+elif "hetero"
+
+if centralized把数据集合并到一个客户端即可
+
+选出features和特征
+跑一个集中式的试一下
+
+整理下apply的用法
+
+year（都减去2000？）和age需要归一化吗
+
+另外点击率预测最后得到的是一个概率吗
+我们的点击率预测（看我的博客）
+
+ x = x.flatten(start_dim=1)
+
+lr速度很快，考虑下dataloader速度可不可以提升
+
+看一下网上的博客ctr的目标到底是什么
+
+
+画ORC曲线
+
+准确率维持在83%左右是为什么？跟数据集划分没关系吧？
+
+你输出model预测错的那些样例看一下
+
+loss为什么降不下去？
+
+把网络加深一点？
+
+框架是否有bug
+
+topN推荐10个看准确率0.3%
+
+
+他怎么训起来，一行行debug看下哪个地方代码写错了
+
+
+
+-1. 把Embedding给学了
+
+0.好好debug一下
+
+问题：用户id和电影id也要加进去。不然你用的特征太少了，很多可能同样的x，但是输出y是不同的
+有很多噪音吧，模型只会输出中间值了
+
+1. zip, user_id, movie_id也要加进去
+2. 参考fyn代码 + 别人深度学习movielens用了什么特征 博客https://blog.csdn.net/jackmcgradylee/article/details/79129105
+
+你需要看更多的论文，看看别人是怎么做的
+如fedctr提取表征是怎么提取的
+
+3. movielens iid和non-iid
+
+4. 看下别人深度学习点击率预测是怎么做的
+
+6. MNSIT划分数据集可以用.data读取到他的数据，然后进行划分 zs
+
+7. GPU是一次性读入所有的to device的吗
+
+改一下框架的命名规范
+
+

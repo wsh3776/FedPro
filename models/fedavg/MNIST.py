@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+# 命名不规范，最好改掉，类名驼峰命名法
 class MNIST(nn.Module):
     def __init__(self):
         super(MNIST, self).__init__()

@@ -1,9 +1,10 @@
 """
-这个文件是处理movielens-1m数据集的
-在别的模块可以直接用from dataset-1m import users, movies, ratings, all_data的方式导入
+这个文件是处理movielens-1m数据集的（用于推荐系统实验，评分1-5）
+在别的模块可以直接用from xxx/datasets import users, movies, ratings, all_data的方式导入
 """
 import pandas as pd
 from tqdm import tqdm
+import os
 import time, random
 from pathlib import Path
 
@@ -12,10 +13,12 @@ from pathlib import Path
 p = Path()
 # absolute path
 ap = str(p.resolve()).replace('\\', '/')
-path = ap + r'/data/MovieLens/1m'
+path = ap + r'/data/MovieLens/movielens'
 print(ap)
 """
-path = r'../../../data/MovieLens/1m'
+
+# path = r'../../../data/MovieLens/1m' 不推荐这么写，也不要用os.getcwd()
+path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")) + '/data/MovieLens/1m'
 
 pd.set_option('display.max_columns', 20)
 pd.set_option('display.max_rows', 100)
@@ -64,7 +67,8 @@ users = users.join(pd.get_dummies(users['occupation']))
 # *******************************************
 
 mnames = ['movie_id', 'title', 'genres']
-movies = pd.read_table(f'{path}/movies.dat', sep='::', header=None, names=mnames, engine='python')
+movies = pd.read_table(f'{path}/movies.dat', sep='::', header=None, names=mnames, encoding="ISO-8859-1",
+                       engine='python')
 
 # 从电影title中提取出电影的年份year
 movies['year'] = movies.title.str.extract("\((\d{4})\)", expand=False)
@@ -92,10 +96,20 @@ genres_list = ["Action",
 # 增加多个列
 movies[genres_list] = 0
 
-# 创建一个tqdm对象
-pbar = enumerate(tqdm(movies['genres'], desc="Processing Bar: ", ncols=100))
-for i, genre in pbar:
-    movies.loc[i, genre.split('|')] = 1
+# **** for loop is slow ****
+# # 创建一个tqdm对象
+# pbar = enumerate(tqdm(movies['genres'], desc="movies Processing Bar: ", ncols=100))
+# for i, genre in pbar:
+#     movies.loc[i, genre.split('|')] = 1
+
+
+# **** apply is recommended ****
+def split_genre(row):
+    movies.loc[row.name, row['genres'].split('|')] = 1
+
+
+movies.apply(split_genre, axis=1) # axis=1，每次得到一行数据
+
 
 # *******************************************
 # ************** ratings ********************
@@ -115,5 +129,5 @@ if __name__ == '__main__':
     print(all_data.columns)
 
     # 把处理好的数据保存到csv文件里
-    # data.to_csv("movielens-1m-data.csv", index=0)  # index=0不保存行索引, head=0不保存行索引
+    # data.to_csv("movielens-movielens-data.csv", index=0)  # index=0不保存行索引, head=0不保存行索引
     print("Proprocessing End!")
