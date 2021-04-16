@@ -20,7 +20,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description='*******FedAvg Experiments Params*******')
 
     parser.add_argument('--model', type=str, default='cnn_mnist', metavar='N',
-                        help='model used for training (cnn_mnist, lr_ctr)')
+                        choices=['cnn_mnist', 'lr_ctr'],
+                        help='model used for training')
 
     parser.add_argument('--dataset', type=str, default='mnist', metavar='D',
                         help='dataset used for training')
@@ -34,8 +35,13 @@ def parse_args():
     parser.add_argument('--num_rounds', type=int, default=100, metavar='NR',
                         help='how many round of communications we should use')
 
-    parser.add_argument('--partition_method', type=str, default='hetero', metavar='N',
-                        help='how to partition the dataset on local workers (hetero, homo, centralized)')
+    parser.add_argument('--partition_method', type=str, default='centralized', metavar='N',
+                        choices=['hetero', 'homo', 'centralized'],
+                        help='how to partition the dataset on local workers')
+
+    parser.add_argument('--client_optimizer', type=str, default='adam',
+                        choices=['sgd', 'adam'],
+                        help='your model optimizer')
 
     parser.add_argument('--lr', type=float, default=3e-4, metavar='LR',
                         help='learning rate for local optimizers (default: 3e-4)')
@@ -56,6 +62,7 @@ def parse_args():
                         help='the device to your training (default: cuda)')
 
     parser.add_argument('--wandb_mode', type=str, default='run', metavar='WM',
+                        choices=['run', 'disabled', 'offline'],
                         help='Whether to use wandb to visualize experimental results (run, disabled, offline)')
 
     parser.add_argument('--notes', type=str, default='weak baseline', metavar='NT',
@@ -71,6 +78,10 @@ if __name__ == '__main__':
 
     args.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+    if args.partition_method == "centralized":
+        args.client_num_in_total = 1
+        args.client_num_per_round = 1
+
     # 使模型随机性+dataloader shuffle不具有随机性
     # 随机选择客户端的随机性要动态的
     np.random.seed(args.seed)
@@ -80,8 +91,8 @@ if __name__ == '__main__':
 
     # 初始化wandb
     wandb.init(project="FedPro_test",
-               name=str(args.dataset) + "-" + str(args.notes), # 这个是图表的名称
-               notes=args.notes, # https://docs.wandb.ai/library#logged-with-specific-calls
+               name=str(args.dataset) + "_" + str(args.partition_method) + "_" + str(args.notes),  # 这个是图表的名称
+               notes=args.notes,  # https://docs.wandb.ai/library#logged-with-specific-calls
                tags=['GPU', 'working'],
                mode=args.wandb_mode,  # run, disabled
                config=args)
@@ -97,9 +108,9 @@ if __name__ == '__main__':
           f"batch_size:\t\t\t\t\t{args.batch_size}\n"
           f"epoch:\t\t\t\t\t\t{args.epoch}\n"
           f"lr:\t\t\t\t\t\t\t{args.lr}\n"
+          f"optimizer:\t\t\t\t\t{args.client_optimizer}\n"
           f"##################################################\n")
 
     server = Server(args)
 
-    # TODO: this is the core api
     server.federate()

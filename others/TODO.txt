@@ -157,14 +157,13 @@ topN推荐10个看准确率0.3%
 
 
 
--1. 把Embedding给学了
 
 0.好好debug一下
 
 问题：用户id和电影id也要加进去。不然你用的特征太少了，很多可能同样的x，但是输出y是不同的
 有很多噪音吧，模型只会输出中间值了
 
-1. zip, user_id, movie_id也要加进去
+1. zip, user_id, movie_id也要加进去（不然有很多噪音他会都输出3
 2. 参考fyn代码 + 别人深度学习movielens用了什么特征 博客https://blog.csdn.net/jackmcgradylee/article/details/79129105
 
 你需要看更多的论文，看看别人是怎么做的
@@ -176,8 +175,21 @@ topN推荐10个看准确率0.3%
 
 6. MNSIT划分数据集可以用.data读取到他的数据，然后进行划分 zs
 
-7. GPU是一次性读入所有的to device的吗
-
 改一下框架的命名规范
 
+至少跑出能看的结果吧？？
 
+
+7.wandb.watch只能运行一次，那我就添加到surrogate里面
+
+client total应该不用作为参数输入吧，你数据集可以决定的呀
+
+这里train和test两个功能应该包裹成两个函数，不要写在一起
+        for t in range(self.num_rounds):
+
+调一下学习率，dropout等参数
+
+划分时序数据应该按时间划分数据集
+
+wandb mode写一下
+如何划分noniid movielens数据集?

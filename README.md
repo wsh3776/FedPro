@@ -33,3 +33,16 @@ for Federated Learning Resources
 
 # Datasets
 
+
+
+# Quick Run
+
+Make sure you install the whole environment. `pip install requirement.txt` (TBD)
+
+You can run a mnist hetero setting example using the following command
+```shell
+cd algorithm/fedavg
+```
+```shell
+bash run_fedavg.sh
+```

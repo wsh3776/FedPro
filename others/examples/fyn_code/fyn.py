@@ -56,11 +56,11 @@ class Classify(nn.Module):
     def __init__(self):
         super(Classify, self).__init__()
 
-        self.movie_id_embed = nn.Embedding(4000, 128)
+        self.movie_id_embed = nn.Embedding(4000, 128) # 这个就是你这个特征所有可能取值的个数，如果多几个的话，就不会得到训练
         self.gender_id_embed = nn.Embedding(2, 128)
         self.occupation_id_embed = nn.Embedding(30, 128)
         self.zip_id_embed = nn.Embedding(4000, 128)
-        self.genres_id_embed = nn.Embedding(20, 128)
+        self.genres_id_embed = nn.Embedding(20, 128)  # 一部电影的类别：['drama', 'comedy', 'xxx']
 
         self.lr1 = nn.Linear(128 * 8 + 1, 1024)
         self.lr2 = nn.Linear(1024, 512)
@@ -68,32 +68,35 @@ class Classify(nn.Module):
         self.lr4 = nn.Linear(128, 2)
 
     def forward(self, x):
-        # movie_id = self.movie_id_embed(x[:, 0].long())
+        # movie_id = self.movie_id_embed(x[:, 0].long()) # 拿出Embedding矩阵的某一行 [32] -> [32, 128]
         gender_id = self.gender_id_embed(x[:, 0].long())
-        age = x[:, 1].unsqueeze(-1)
+        age = x[:, 1].unsqueeze(-1) # [32] ->[32, 1]
         occ_id = self.occupation_id_embed(x[:, 2].long())
         # zip_id = self.zip_id_embed(x[:, 4].long())
 
         genres_id_0 = self.genres_id_embed(x[:, 3].long())
         genres_id_1 = self.genres_id_embed(x[:, 4].long())
+
         genres_id_2 = self.genres_id_embed(x[:, 5].long())
         genres_id_3 = self.genres_id_embed(x[:, 6].long())
         genres_id_4 = self.genres_id_embed(x[:, 7].long())
         genres_id_5 = self.genres_id_embed(x[:, 8].long())
 
         feature = torch.cat((gender_id, age, occ_id,
-                             genres_id_0, genres_id_1, genres_id_2, genres_id_3, genres_id_4, genres_id_5), dim=-1)
+                             genres_id_0, genres_id_1, genres_id_2, genres_id_3, genres_id_4, genres_id_5), dim=-1) # 按照最后一个维度拼接起来
 
         out = F.relu(self.lr1(feature))
         out = F.relu(self.lr2(out))
         out = F.relu(self.lr3(out))
         out = self.lr4(out)
-
+        """ x[:, 4]
+           tensor([ 0.,  0., 12., 12.,  8.,  0.,  0., 10.,  0., 12., 10.,  0., 16.,  0.,
+            5.,  0.,  5., 10.,  0.,  1.,  3.,  5.,  1., 13., 16., 10.,  8.,  6.,
+            0.,  5., 16., 13.], device='cuda:0')
+        """
         return out
 
-
-f = open('movielens-movielens-data.csv').readlines()[1:]
-
+f = open('movielens_row_data.csv').readlines()[1:]
 user_id_dic = {}
 movie_id_dic = {}
 gender_dic = {}
@@ -103,6 +106,7 @@ zip_dic = {}
 genres_dic = {}
 genres_dic['NULL'] = len(genres_dic)
 
+# 对每一维特征创建字典
 for item in tqdm(f):
     user_id_tmp = item.strip().split(',')[0]
     movie_id_tmp = item.strip().split(',')[1]
@@ -142,6 +146,7 @@ train_count = int(len(f) * 0.8)
 train_data = []
 test_data = []
 
+# 打乱数据集
 random.shuffle(f)
 
 max_age = 0
@@ -232,8 +237,6 @@ def get_ace_metric(predict, label):
             ratio_list.append(0)
 
     return sum(ratio_list) / len(ratio_list)
-
-
 cly = Classify().cuda()
 criterion = nn.CrossEntropyLoss().cuda()
 
@@ -308,7 +311,7 @@ while True:
         val_acc = (sum(acc_val) / len(acc_val)) * 100
 
     if train_acc > best_val:
-        torch.save(cly.state_dict(), "model/cly.pkl")
+        # torch.save(cly.state_dict(), "model/cly.pkl")
 
         best_val = train_acc
         exit_count = 0

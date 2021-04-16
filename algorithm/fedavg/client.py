@@ -9,13 +9,14 @@ import wandb
 
 class Client():
     def __init__(self, user_id, train_dataloader=None, test_dataloader=None,
-                 model=None, epoch=10, lr=0.01, device='cuda'):
+                 model=None, epoch=10, lr=0.01, optimizer='sgd', device='cuda'):
         self.user_id = user_id
         self.train_dataloader = train_dataloader
         self.test_dataloader = test_dataloader
         self.model = model  # 创建本地模型
         self.epoch = epoch
         self.lr = lr
+        self.optimizer = optimizer
         self.device = device
 
     # def select_model(self, model_name):
@@ -48,14 +49,15 @@ class Client():
         model.train()  # 使用Dropout, BatchNorm
 
         criterion = nn.CrossEntropyLoss(reduction='mean')
-        # optimizer = optim.SGD(model.parameters(), lr=self.lr)
-        optimizer = optim.Adam(model.parameters(), lr=self.lr)
+        if self.optimizer == "sgd":
+            optimizer = optim.SGD(model.parameters(), lr=self.lr)
+        elif self.optimizer == "adam":
+            optimizer = optim.Adam(model.parameters(), lr=self.lr)
 
 
         batch_loss = []
         for epoch in range(self.epoch):
-            pbar = enumerate(tqdm(self.train_dataloader, desc="Training Bar"), 0)
-            for i, (inputs, labels) in pbar:
+            for inputs, labels in self.train_dataloader:
                 inputs = inputs.to(self.device)
                 labels = labels.to(self.device)
                 optimizer.zero_grad()

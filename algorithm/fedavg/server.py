@@ -1,9 +1,10 @@
 import numpy as np
 from algorithm.fedavg.client import Client
+from tqdm import tqdm
 import wandb
 
 from data_preprocessing.dummy_data import DummyData  # 这个其实应该放到
-from data_preprocessing.mnist.mnist_dataset import MNIST_Centralized
+from data_preprocessing.mnist.data_loader import partition_data as partition_data_mnist
 from data_preprocessing.ctr.movielens.data_loader import partition_data as partition_data_ctr_movielens
 from models.fedavg.mnist import MNIST
 from models.fedavg.lr import LogisticRegression
@@ -13,13 +14,12 @@ class Server():
     def __init__(self, args):
         self.model_name = args.model
         self.dataset = args.dataset
-        self.client_num_in_total = args.client_num_in_total \
-            if args.partition_method != "centralized" else 1
-        self.client_num_per_round = args.client_num_per_round \
-            if args.partition_method != "centralized" else 1
+        self.client_num_in_total = args.client_num_in_total
+        self.client_num_per_round = args.client_num_per_round
         self.num_rounds = args.num_rounds
         self.partition_method = args.partition_method
         self.lr = args.lr
+        self.optimizer = args.client_optimizer
         self.batch_size = args.batch_size
         self.epoch = args.epoch
         self.eval_interval = args.eval_interval
@@ -41,15 +41,15 @@ class Server():
         if model_name == 'cnn_mnist':
             model = MNIST()
         elif model_name == 'lr_ctr':
-            model = LogisticRegression(input_dim=42, output_dim=5)
+            model = LogisticRegression(input_dim=44, output_dim=5)
         return model
 
     # TODO: load data
     def get_dataloader(self):
         if self.dataset == "dummy":
-            train_dataloader, test_dataloader = dummyData()
+            train_dataloader, test_dataloader = DummyData()
         elif self.dataset == "mnist":
-            train_dataloader, test_dataloader = MNIST_Centralized(self.batch_size)
+            train_dataloader, test_dataloader = partition_data_mnist(self.partition_method, self.batch_size)
         elif self.dataset == "ctr_movielens":
             train_dataloader, test_dataloader = partition_data_ctr_movielens(self.partition_method, self.batch_size)
         # 如果想跑集中式，我只要把参数并在一起就行了
@@ -82,7 +82,8 @@ class Server():
         """
         # Client need to update the dataset and params
         surrogate = [Client(user_id=i, train_dataloader=None, test_dataloader=None,
-                            model=self.model, epoch=self.epoch, lr=self.lr, device=self.device)
+                            model=self.model, epoch=self.epoch, lr=self.lr, optimizer=self.optimizer,
+                            device=self.device)
                      for i in range(self.client_num_per_round)]
         # print(surrogate[0].model)
         return surrogate
@@ -101,53 +102,64 @@ class Server():
 
         self.global_params = new_params
 
+    def train_on_clients(self, round):
+        selected_clients_index = self.select_clients(round_th=round)
+        print("-" * 50)
+        print(f"Round {round}")
+        print("train local models")
+        # print(selected_clients_index)
+        self.updates = []  # 每轮通信清空这个updates
+        for k in tqdm(range(self.client_num_per_round)):
+            # 训练时只把参数发给被选中的客户端
+            surrogate = self.surrogate[k]  # 放到第k个槽位上
+            surrogate.update_local_dataset(self.clients[selected_clients_index[k]])  # update datasets and params
+            surrogate.set_params(self.global_params)
+            # 得到参数，这里的sample_loss其实没什么用，因为我们还没有更新全局模型
+            # 本地训练 local client train
+            local_params, train_data_num, sample_loss \
+                = surrogate.train()
+            self.updates.append((local_params, train_data_num))
+
+    def test_global_model(self, round):
+        print("evaluate global model:")
+
+        # eval on train data
+        acc_list, loss_list = self.eval_model(dataset='train')
+        avg_acc_all = self.avg_metric(acc_list)
+        avg_loss_all = self.avg_metric(loss_list)
+        wandb.log({"Train/acc": avg_acc_all * 100, "round": round})
+        wandb.log({"Train/loss": avg_loss_all * 100, "round": round})
+
+        # eval on test data
+        acc_list, loss_list = self.eval_model(dataset='test')
+        avg_acc_all = self.avg_metric(acc_list)
+        avg_loss_all = self.avg_metric(loss_list)
+        wandb.log({"Test/acc": avg_acc_all * 100, "round": round})
+        wandb.log({"Test/loss": avg_loss_all * 100, "round": round})
+
+        print()
+        print(f"[TRAIN] Avg acc: {avg_acc_all * 100:.3f}%, Avg loss: {avg_loss_all:.5f}")
+        print(f"[TEST]  Avg acc: {avg_acc_all * 100:.3f}%, Avg loss: {avg_loss_all:.5f}")
+        # print("-" * 50)
+        print()
+
     def federate(self):
         print("Begin Federating!")
-        print(f"Training among {self.client_num_in_total} clients!")
+        print(f"Training among {self.client_num_in_total} clients! \n")
 
-        # TODO: 这里train和test两个功能应该包裹成两个函数，不要写在一起
+        # TODO: (代码整洁之道）这里train和test两个功能应该包裹成两个函数，不要写在一起
         for t in range(self.num_rounds):
             """
             server-client communication round t
             """
-            selected_clients_index = self.select_clients(round_th=t)
-            # print(selected_clients_index)
-            self.updates = []  # 每轮通信清空这个updates
-            for k in range(self.client_num_per_round):
-                # 训练时只把参数发给被选中的客户端
-                surrogate = self.surrogate[k]  # 放到第k个槽位上
-                surrogate.update_local_dataset(self.clients[selected_clients_index[k]])  # update datasets and params
-                surrogate.set_params(self.global_params)
-                # 得到参数，这里的sample_loss其实没什么用，因为我们还没有更新全局模型
-                # 本地训练 local train
-                local_params, train_data_num, sample_loss \
-                    = surrogate.train()
-                self.updates.append((local_params, train_data_num))
-
+            self.train_on_clients(t)
             # average params
             self.aggrerate()  # 更新self.global_params
 
             # 间隔多久用当前的全局模型参数做一次所有训练集和测试集的测试
             # 测试时要把参数发给所有的客户端
             if t % self.eval_interval == 0:
-                print()
-                print("-" * 40)
-                print(f"Round {t}")
-
-                # eval on train data
-                acc_list, loss_list = self.eval_model(dataset='train')
-                avg_acc_all = self.avg_metric(acc_list)
-                avg_loss_all = self.avg_metric(loss_list)
-                print(f"[TRAIN] Avg acc: {avg_acc_all * 100:.3f}%, Avg loss: {avg_loss_all:.5f}")
-                wandb.log({"Train/acc": avg_acc_all * 100, "round": t})
-                # eval on test data
-                acc_list, loss_list = self.eval_model(dataset='test')
-                avg_acc_all = self.avg_metric(acc_list)
-                avg_loss_all = self.avg_metric(loss_list)
-                print(f"[TEST] Avg acc: {avg_acc_all * 100:.3f}%, Avg loss: {avg_loss_all:.5f}")
-                wandb.log({"Test/acc": avg_acc_all * 100, "round": t})
-                print("-" * 40)
-                print()
+                self.test_global_model(t)
 
         # update global model params
 
@@ -164,7 +176,7 @@ class Server():
         # print(f"\n====Eval on all {dataset} dataset====")
         acc_list = []
         loss_list = []
-        for k in range(self.client_num_in_total):
+        for k in tqdm(range(self.client_num_in_total)):
             surrogate = self.surrogate[k % self.client_num_per_round]  # 放到槽位上去算
             surrogate.update_local_dataset(self.clients[k])  # update dataset and params
             surrogate.set_params(self.global_params)

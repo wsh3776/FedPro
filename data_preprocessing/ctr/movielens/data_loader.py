@@ -31,7 +31,8 @@ Index(['user_id', 'movie_id', 'rating', 'timestamp', 'gender', 'age',
 """
 
 # TODO：选择特征有待考虑，另外year，以及age需要归一化吗，需要归一化吗？ zip，timestamp需要加入吗
-features = ['gender', 'age', 'K-12 student',
+# 这里应该把user_id, movie_id, zip等信息考虑进来
+features = ['user_id', 'movie_id', 'gender', 'age', 'K-12 student',
             'academic/educator', 'artist', 'clerical/admin', 'college/grad student',
             'customer service', 'doctor/health care', 'executive/managerial',
             'farmer', 'homemaker', 'lawyer', 'other', 'programmer', 'retired',
@@ -52,6 +53,20 @@ Y = Y.values.reshape(len(Y))  # pandas -> numpy
 train_data, test_data, train_label, test_label = train_test_split(X, Y, test_size=0.40, random_state=32)
 
 
+
+
+def partition_data(partition_method="homo", batch_size=32):
+    if partition_method == "homo":
+        # 随机打乱pandas数据集
+        all_data = all_data.sample(frac=1).reset_index(drop=True)
+        print(users.head())
+    elif partition_method == "hetero":
+        print(movies.head())
+    elif partition_method == "centralized":
+        train_dataloader, test_dataloader = centralized_data(data=data, batch_size=batch_size)
+    return train_dataloader, test_dataloader
+
+
 # 统一划分数据集吧
 def split_data_iid(data, N):
     """
@@ -62,7 +77,7 @@ def split_data_iid(data, N):
     pass
 
 
-def split_data_noiid(data):
+def split_data_noniid(data):
     pass
 
 
@@ -83,16 +98,4 @@ def centralized_data(data, batch_size):
     test_loader = DataLoader(dataset=test_ids, batch_size=batch_size, shuffle=True)  # shuffle打乱TensorDataset
     test_dataloader.append(test_loader)
 
-    return train_dataloader, test_dataloader
-
-
-def partition_data(partition_method="homo", batch_size=32):
-    if partition_method == "homo":
-        # 随机打乱pandas数据集
-        all_data = all_data.sample(frac=1).reset_index(drop=True)
-        print(users.head())
-    elif partition_method == "hetero":
-        print(movies.head())
-    elif partition_method == "centralized":
-        train_dataloader, test_dataloader = centralized_data(data=data, batch_size=batch_size)
     return train_dataloader, test_dataloader
