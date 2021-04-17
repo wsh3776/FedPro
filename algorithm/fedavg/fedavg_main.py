@@ -59,6 +59,7 @@ def parse_args():
                         help='seed for random select client')
 
     parser.add_argument('--device', type=str, default='cuda', metavar='DV',
+                        choices=['cuda', 'cpu'],
                         help='the device to your training (default: cuda)')
 
     parser.add_argument('--wandb_mode', type=str, default='run', metavar='WM',
@@ -76,7 +77,7 @@ if __name__ == '__main__':
     # get parameters
     args = parse_args()
 
-    args.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # args.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     if args.partition_method == "centralized":
         args.client_num_in_total = 1
@@ -105,10 +106,12 @@ if __name__ == '__main__':
           f"client_num_in_total:\t\t{args.client_num_in_total}\n"
           f"client_num_per_round:\t\t{args.client_num_per_round}\n"
           f"settings:\t\t\t\t\t{args.partition_method}\n"
+          f"eval_interval:\t\t\t\t{args.eval_interval}\n"
           f"batch_size:\t\t\t\t\t{args.batch_size}\n"
           f"epoch:\t\t\t\t\t\t{args.epoch}\n"
           f"lr:\t\t\t\t\t\t\t{args.lr}\n"
           f"optimizer:\t\t\t\t\t{args.client_optimizer}\n"
+          f"device:\t\t\t\t\t\t{args.device}\n"
           f"##################################################\n")
 
     server = Server(args)

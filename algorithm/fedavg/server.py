@@ -27,21 +27,21 @@ class Server():
         self.device = args.device
         self.selected_clients_idx = []
         self.clients = []
-        self.model = self.select_model(self.model_name)  # 创建对应的模型
+        self.model = self._select_model(self.model_name)  # 创建对应的模型
         # use client_num_per_round models to train all data
         # 设置k个模型来训练每轮被选择的K个客户端
-        self.surrogate = self.setup_surrogate()  # 会用到self.model
+        self.surrogate = self._setup_surrogate()  # 会用到self.model
         # Add datasets into each client: self.clients
-        self.clients = self.setup_clients()
+        self.clients = self._setup_clients()
         self.global_params = self.model.state_dict()  # 设置为全局模型的参数
         self.updates = []
 
-    def select_model(self, model_name):
+    def _select_model(self, model_name):
         model = None
         if model_name == 'cnn_mnist':
             model = MNIST()
         elif model_name == 'lr_ctr':
-            model = LogisticRegression(input_dim=44, output_dim=5)
+            model = LogisticRegression(input_dim=129, output_dim=5)
         return model
 
     # TODO: load data
@@ -56,7 +56,7 @@ class Server():
         # if self.centralized==True:
         return train_dataloader, test_dataloader
 
-    def select_clients(self, round_th):
+    def _select_clients(self, round_th):
         np.random.seed(seed=self.seed + round_th)
         selected_clients_index = np.random.choice(self.client_num_in_total,
                                                   size=self.client_num_per_round,
@@ -64,7 +64,7 @@ class Server():
         return selected_clients_index
 
     # TODO: setup all clients, user_id or just id? add DATALOADER
-    def setup_clients(self):
+    def _setup_clients(self):
         # setup all clients (actually we just want to store the data into client)
         train_dataloader, test_dataloader = self.get_dataloader()
         # 这里不需要传递epoch,lr,model_name，因为这些每个客户端是一样的，我只要在surrogate里设置就行了
@@ -75,7 +75,7 @@ class Server():
             for i in np.arange(self.client_num_in_total)]
         return clients
 
-    def setup_surrogate(self):
+    def _setup_surrogate(self):
         """
         Your can use only one model to train. The only thing you need to is update the datasets and parameters for this each client
         Also you can define num_per_round models and use multiprocessing to speed up training if you want.
@@ -88,7 +88,7 @@ class Server():
         # print(surrogate[0].model)
         return surrogate
 
-    def aggrerate(self):
+    def _aggregate(self):
         n = sum([n_k for (params, n_k) in self.updates])
 
         new_params = self.updates[0][0]
@@ -101,12 +101,13 @@ class Server():
                     new_params[key] += client_params[key] * n_k / n
 
         self.global_params = new_params
+        return self
 
-    def train_on_clients(self, round):
-        selected_clients_index = self.select_clients(round_th=round)
+    def _train_on_clients(self, round):
+        selected_clients_index = self._select_clients(round_th=round)
         print("-" * 50)
         print(f"Round {round}")
-        print("train local models")
+        print("train local models:")
         # print(selected_clients_index)
         self.updates = []  # 每轮通信清空这个updates
         for k in tqdm(range(self.client_num_per_round)):
@@ -119,19 +120,20 @@ class Server():
             local_params, train_data_num, sample_loss \
                 = surrogate.train()
             self.updates.append((local_params, train_data_num))
+        return self  # 返回这个类
 
-    def test_global_model(self, round):
+    def _test_global_model(self, round):
         print("evaluate global model:")
 
         # eval on train data
-        acc_list, loss_list = self.eval_model(dataset='train')
+        acc_list, loss_list = self._eval_model(dataset='train')
         avg_acc_all = self.avg_metric(acc_list)
         avg_loss_all = self.avg_metric(loss_list)
         wandb.log({"Train/acc": avg_acc_all * 100, "round": round})
         wandb.log({"Train/loss": avg_loss_all * 100, "round": round})
 
         # eval on test data
-        acc_list, loss_list = self.eval_model(dataset='test')
+        acc_list, loss_list = self._eval_model(dataset='test')
         avg_acc_all = self.avg_metric(acc_list)
         avg_loss_all = self.avg_metric(loss_list)
         wandb.log({"Test/acc": avg_acc_all * 100, "round": round})
@@ -152,18 +154,16 @@ class Server():
             """
             server-client communication round t
             """
-            self.train_on_clients(t)
-            # average params
-            self.aggrerate()  # 更新self.global_params
+            self._train_on_clients(t)._aggregate()  # 训练 + 更新self.global_params
 
             # 间隔多久用当前的全局模型参数做一次所有训练集和测试集的测试
             # 测试时要把参数发给所有的客户端
             if t % self.eval_interval == 0:
-                self.test_global_model(t)
+                self._test_global_model(t)
 
         # update global model params
 
-    def eval_model(self, dataset: str = 'test'):
+    def _eval_model(self, dataset: str = 'test'):
         """
         用当前的全局模型评估所有客户端训练集or测试集上的准确率和损失值
 

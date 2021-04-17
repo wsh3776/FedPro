@@ -5,6 +5,7 @@ import torch
 from data_preprocessing.mnist.datasets import train_data, test_data
 from sklearn.utils import shuffle
 from torch.utils.data import TensorDataset
+from itertools import accumulate
 
 train_data = train_data
 test_data = test_data
@@ -12,12 +13,13 @@ test_data = test_data
 
 def partition_data(partition_method="hetero", batch_size=32):
     if partition_method == "homo":
-        train_dataloader, test_dataloader = split_data_iid(train_data, test_data, num_clients=200, batch_size=batch_size)
+        train_dataloader, test_dataloader = split_data_iid(train_data, test_data, num_clients=200,
+                                                           batch_size=batch_size)
     elif partition_method == "hetero":
         # TODO: num_clients和alpha最好作为args参数传入
         # alpha越小,异质程度越高
         train_dataloader, test_dataloader = split_data_noniid(train_data, test_data,
-                                                              num_clients=200, alpha=0.3,
+                                                              num_clients=200, alpha=0.28,
                                                               batch_size=batch_size)
     elif partition_method == "centralized":
         train_dataloader, test_dataloader = centralized_data(train_data, test_data, batch_size=batch_size)
@@ -107,7 +109,30 @@ def split_data_noniid(train_data, test_data, num_clients, alpha, batch_size):
 """狄利克雷分布产生non-iid数据集"""
 
 
-def dirichlet_partition2(samples, num_clients, alpha):
+def dirichlet_partition(samples, num_clients, alpha):
+    """
+    O(n)
+    """
+    ret = {i: [] for i in range(num_clients)}
+    random.shuffle(samples)
+    # TODO: what does it mean
+    prop = np.random.dirichlet(np.repeat(alpha, num_clients))
+    prop = list(accumulate(prop))
+    # for i in range(1, len(prop)):
+    #     prop[i] = prop[i - 1] + prop[i]
+    i = 0
+    for idx in range(0, len(prop)):
+        pre = i
+        while i / (len(samples)) < prop[idx]:
+            i += 1
+        ret[idx] += samples[pre:i]
+    # for i, sample in enumerate(samples):
+    #     idx = bisect.bisect_left(prop, i/len(samples), 0, len(prop))
+    #     ret[idx].append(sample)
+    return ret
+
+
+def dirichlet_partition_2(samples, num_clients, alpha):
     """
     O(nlogn)
     """
@@ -122,33 +147,13 @@ def dirichlet_partition2(samples, num_clients, alpha):
     return ret
 
 
-def dirichlet_partition(samples, num_clients, alpha):
-    """
-    O(n)
-    """
-    ret = {i: [] for i in range(num_clients)}
-    random.shuffle(samples)
-    prop = np.random.dirichlet(np.repeat(alpha, num_clients))
-    for i in range(1, len(prop)):
-        prop[i] = prop[i - 1] + prop[i]
-    i = 0
-    for idx in range(0, len(prop)):
-        pre = i
-        while (i / (len(samples)) < prop[idx]):
-            i += 1
-        ret[idx] += samples[pre:i]
-    # for i, sample in enumerate(samples):
-    #     idx = bisect.bisect_left(prop, i/len(samples), 0, len(prop))
-    #     ret[idx].append(sample)
-    return ret
-
-
 def split_by_label(data):
     ret = {}
-    for sample, label in data:
+    for sample, label in data:  # sample shape: torch.Size([1, 28, 28])
         if label not in ret.keys():
             ret[label] = []
         ret[label].append((sample, label))
+    # ret: {0: [(data_i, 0), (data_j, 0)], 1: [..., ..., ...], ..., 9: [..., ...]}
     return ret
 
 
@@ -159,8 +164,8 @@ def data_split(data, num_clients, alpha):
     for label, samples in label2data.items():
         ret = dirichlet_partition(samples, num_clients, alpha)
         for user, samples in ret.items():
-            user2data[user] += ret[user]
-    return list(user2data.values())
+            user2data[user] += ret[user]  # [(data_i, 5), (data_j, 5)] += [(data_k, 3), (data_t, 3), ...]
+    return list(user2data.values())  # 得到每个客户端划分好后的数据集[client_1_data, ..., client_n_data]
 
 
 def data_to_dataloader(data, batch_size):

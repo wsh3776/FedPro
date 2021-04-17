@@ -1,5 +1,5 @@
 # 这里要写完整的路径
-from data_preprocessing.ctr.movielens.datasets import users, movies, ratings, all_data
+from data_preprocessing.ctr.movielens.datasets_onehot import users, movies, ratings, all_data
 from sklearn.model_selection import train_test_split
 import torch
 from torch.utils.data import TensorDataset, DataLoader
@@ -11,59 +11,36 @@ import numpy as np
 
 data = all_data
 # 对year进行归一化
-data['year'] = data['year'].astype(int)
-data['year'] = (data['year'] - data['year'].min()) / (data['year'].max() - data['year'].min())
-data['age'] = (data['age'] - data['age'].min()) / (data['age'].max() - data['age'].min())
-"""
-data.columns
-Index(['user_id', 'movie_id', 'rating', 'timestamp', 'gender', 'age',
-       'occupation_idx', 'occupation', 'zip', 'K-12 student',
-       'academic/educator', 'artist', 'clerical/admin', 'college/grad student',
-       'customer service', 'doctor/health care', 'executive/managerial',
-       'farmer', 'homemaker', 'lawyer', 'other', 'programmer', 'retired',
-       'sales/marketing', 'scientist', 'self-employed', 'technician/engineer',
-       'tradesman/craftsman', 'unemployed', 'writer', 'title', 'genres',
-       'year', 'Action', 'Adventure', 'Animation', 'Children's', 'Comedy',
-       'Crime', 'Documentary', 'Drama', 'Fantasy', 'Film-Noir', 'Horror',
-       'Musical', 'Mystery', 'Romance', 'Sci-Fi', 'Thriller', 'War',
-       'Western'],
-      dtype='object')
-"""
+# data['year'] = data['year'].astype(int)
+# data['year'] = (data['year'] - data['year'].min()) / (data['year'].max() - data['year'].min())
+# data['age'] = (data['age'] - data['age'].min()) / (data['age'].max() - data['age'].min())
 
 # TODO：选择特征有待考虑，另外year，以及age需要归一化吗，需要归一化吗？ zip，timestamp需要加入吗
-# 这里应该把user_id, movie_id, zip等信息考虑进来
-features = ['user_id', 'movie_id', 'gender', 'age', 'K-12 student',
-            'academic/educator', 'artist', 'clerical/admin', 'college/grad student',
-            'customer service', 'doctor/health care', 'executive/managerial',
-            'farmer', 'homemaker', 'lawyer', 'other', 'programmer', 'retired',
-            'sales/marketing', 'scientist', 'self-employed', 'technician/engineer',
-            'tradesman/craftsman', 'unemployed', 'writer', 'year', 'Action', 'Adventure', 'Animation', "Children's",
-            'Comedy', 'Crime', 'Documentary', 'Drama', 'Fantasy', 'Film-Noir', 'Horror',
-            'Musical', 'Mystery', 'Romance', 'Sci-Fi', 'Thriller', 'War',
-            'Western']
+# 这里应该把user_id, movie_id等信息考虑进来
+features = list(data.columns.drop(labels=['rating', 'user_id', 'movie_id']))
+# len(features)
 labels = ['rating']
 
-X = data[features]
+# 100万条数据我先取前面10000条
+X = data[features][:10000]
 X = X.values  # pandas -> numpy
-Y = data[labels]
+Y = data[labels][:10000]
 Y = Y.values.reshape(len(Y))  # pandas -> numpy
 # array([1, 1, 1, ..., 0, 1, 1])
 
 # 利用train_test_split将数据集随机划分为训练集和测试集 4:1 (这里有个随机种子seed)
-train_data, test_data, train_label, test_label = train_test_split(X, Y, test_size=0.40, random_state=32)
-
-
+train_data, test_data, train_label, test_label = train_test_split(X, Y, test_size=0.20, random_state=32)
 
 
 def partition_data(partition_method="homo", batch_size=32):
     if partition_method == "homo":
         # 随机打乱pandas数据集
-        all_data = all_data.sample(frac=1).reset_index(drop=True)
+        data = data.sample(frac=1).reset_index(drop=True)
         print(users.head())
     elif partition_method == "hetero":
         print(movies.head())
     elif partition_method == "centralized":
-        train_dataloader, test_dataloader = centralized_data(data=data, batch_size=batch_size)
+        train_dataloader, test_dataloader = centralized_data(batch_size=batch_size)
     return train_dataloader, test_dataloader
 
 
@@ -81,7 +58,7 @@ def split_data_noniid(data):
     pass
 
 
-def centralized_data(data, batch_size):
+def centralized_data(batch_size):
     train_dataloader, test_dataloader = [], []
 
     # 处理训练集
