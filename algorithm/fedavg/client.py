@@ -19,11 +19,6 @@ class Client():
         self.optimizer = optimizer
         self.device = device
 
-    # def select_model(self, model_name):
-    #     model = None
-    #     if model_name == 'cnn':
-    #         model = mnist()
-    #     return model
 
     def update_local_dataset(self, client):
         # 传进来一个被选择的模型client，用他的属性更新当前槽位surrogate的属性
@@ -109,6 +104,9 @@ class Client():
         client_num = 0
         batch_loss = []
 
+        client_predicted = []
+        client_labels = []
+
         with torch.no_grad():
             for data in dataloader:
                 images, labels = data
@@ -123,7 +121,12 @@ class Client():
                 # print((predicted == labels).sum()) # tensor(1)
                 batch_loss.append(loss)
                 num_correct += (predicted == labels).sum().item()
+                # 为了计算全局的precisision，auc等指标
+                client_predicted += (list(predicted.cpu().numpy()))
+                client_labels += (list(labels.cpu().numpy()))
 
-        return client_num, num_correct / client_num, sum(batch_loss) / len(batch_loss)
+        # TODO: 这里我这样测的前提是，我每个客户端的模型是一样的，然后我只要把每个客户端预测的结果加到一个列表里，然后算综合的评价指标即可
+        # 这样我就不用每个客户端上乘以权重去算法了
+        return client_labels, client_predicted, client_num, num_correct / client_num, sum(batch_loss) / len(batch_loss)
         # print('Accuracy of the network on the 10000 test images: %d %%' % (
         #         100 * correct / total))
