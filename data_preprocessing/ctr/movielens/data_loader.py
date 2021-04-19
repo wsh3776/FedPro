@@ -2,9 +2,10 @@
 from data_preprocessing.ctr.movielens.datasets import users, movies, ratings, get_negative_samples_per_user
 from sklearn.model_selection import train_test_split
 import torch
-from torch.utils.data import TensorDataset, DataLoader
+from torch.utils.data import Dataset, TensorDataset, DataLoader
 import numpy as np
 from sklearn.utils import shuffle
+import argparse
 
 # print(users)
 # print(movies)
@@ -68,7 +69,33 @@ Y = Y.values.reshape(len(Y))  # pandas -> numpy
 train_data, test_data, train_label, test_label = train_test_split(X, Y, test_size=0.20, random_state=42)
 
 
+class MyDataset(Dataset):
+    def __init__(self, data, label):
+        self.data = data
+        self.label = label
+
+    def __getitem__(self, i):
+        data = self.data[i]
+        label = self.label[i]
+        return data, label
+
+    def __len__(self):
+        return len(self.label)
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description='*******data_loader*******')
+
+    parser.add_argument('--case', type=str, default='hello', metavar='N',
+                        help='this is a test parameter')
+    args = parser.parse_known_args()[0]
+    return args
+
+
 def partition_data(partition_method="homo", batch_size=32):
+    # TODO: add parse_args
+    # args = parse_args()
+    # print(args.case)
     if partition_method == "homo":
         train_dataloader, test_dataloader = split_data_iid(num_clients=200, batch_size=batch_size)
     elif partition_method == "hetero":
@@ -94,7 +121,7 @@ def split_data_iid(num_clients, batch_size):
     for X, Y in zip(train_X_list, train_Y_list):
         X_train = torch.as_tensor(X, dtype=torch.float32)
         Y_train = torch.as_tensor(Y, dtype=torch.long)
-        train_ids = TensorDataset(X_train, Y_train)
+        train_ids = MyDataset(X_train, Y_train)
         train_loader = torch.utils.data.DataLoader(dataset=train_ids, batch_size=batch_size, shuffle=True)
         train_dataloader.append(train_loader)
 
