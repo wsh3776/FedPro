@@ -2,27 +2,50 @@ import random
 import numpy as np
 import bisect
 import torch
-from data_preprocessing.mnist.datasets import train_data, test_data
+from data_preprocessing.mnist.datasets import get_datasets
 from sklearn.utils import shuffle
 from torch.utils.data import TensorDataset
 from itertools import accumulate
+import argparse
 
-train_data = train_data
-test_data = test_data
+
+def parse_args():
+    """
+    除了fedavg_main.py中需要读入参数外，这个模块也要读入参数，可以把参数都写在命令行参数里面，
+    parser会自动从sys.argv中去解析匹配到的参数
+    """
+    parser = argparse.ArgumentParser(description='*******data_loader*******')
+
+    parser.add_argument('--client_num_in_total', type=int, default=200, metavar='NN',
+                        help='number of clients in distributed cluster')
+
+    parser.add_argument('--batch_size', type=int, default=32, metavar='BS',
+                        help='input batch size for training (default: 64)')
+
+    parser.add_argument('--partition_alpha', type=int, default=0.28, metavar='RPN',
+                        help='partition_alpha')
+
+    args = parser.parse_known_args()[0]
+    return args
 
 
 def partition_data(partition_method="hetero", batch_size=32):
+    args = parse_args()
+
+    train_data, test_data = get_datasets()
+
     if partition_method == "homo":
-        train_dataloader, test_dataloader = split_data_iid(train_data, test_data, num_clients=200,
-                                                           batch_size=batch_size)
+        train_dataloader, test_dataloader = split_data_iid(train_data, test_data, num_clients=args.client_num_in_total,
+                                                           batch_size=args.batch_size)
     elif partition_method == "hetero":
         # TODO: num_clients和alpha最好作为args参数传入
         # alpha越小,异质程度越高
         train_dataloader, test_dataloader = split_data_noniid(train_data, test_data,
-                                                              num_clients=200, alpha=0.28,
-                                                              batch_size=batch_size)
+                                                              num_clients=args.client_num_in_total,
+                                                              alpha=args.partition_alpha,
+                                                              batch_size=args.batch_size)
     elif partition_method == "centralized":
-        train_dataloader, test_dataloader = centralized_data(train_data, test_data, batch_size=batch_size)
+        train_dataloader, test_dataloader = centralized_data(train_data, test_data, batch_size=args.batch_size)
     return train_dataloader, test_dataloader
 
 
@@ -32,6 +55,10 @@ def centralized_data(train_data, test_data, batch_size=32):
     client_num_per_round: 1
     :param batch_size: DataLoader
     :return: list
+
+    Args:
+        test_data:
+        train_data:
     """
     train_dataloader, test_dataloader = [], []
 
