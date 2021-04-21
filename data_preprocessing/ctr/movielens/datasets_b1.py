@@ -1,4 +1,5 @@
 """
+_b1表示备份文件1
 这个文件是处理movielens-1m数据集的（用于模拟联邦点击率预测ctr实验）
 （这里我把评分1-5中的1-2转为未点击，3-5转为点击）
 在别的模块可以直接用from xxx/datasets import users, movies, ratings, all_data的方式导入
@@ -24,74 +25,53 @@ pd.set_option('display.max_rows', 100)
 unames = ['user_id', 'gender', 'age', 'occupation', 'zip']
 users = pd.read_table(f'{path}/users.dat', sep="::", header=None, names=unames, encoding='utf-8', engine="python")
 
-users = users.join(pd.get_dummies(users['gender'], prefix="gender"))
-users.drop(columns=['gender'], inplace=True)
-
-users = users.join(pd.get_dummies(users['age'], prefix="age"))
-users.drop(columns=['age'], inplace=True)
-
-# zip暂时不用
-users.drop(columns=['zip'], inplace=True)
-
-users = users.join(pd.get_dummies(users['occupation'], prefix="occupation"))
-users.drop(columns=['occupation'], inplace=True)
-
-
-
-
 # 性别'F','M'转为0,1
-# users['gender'] = users['gender'].apply(lambda x: 0 if x == 'F' else 1)
+users['gender'] = users['gender'].apply(lambda x : 0 if x == 'F' else 1)
 
-# # 把occupation转为具体名称
-# users.insert(4, 'occupation_detail', None)
-# # 对应0-20
-# occupation_details = ["other",
-#                       "academic/educator",
-#                       "artist",
-#                       "clerical/admin",
-#                       "college/grad student",
-#                       "customer service",
-#                       "doctor/health care",
-#                       "executive/managerial",
-#                       "farmer",
-#                       "homemaker",
-#                       "K-12 student",
-#                       "lawyer",
-#                       "programmer",
-#                       "retired",
-#                       "sales/marketing",
-#                       "scientist",
-#                       "self-employed",
-#                       "technician/engineer",
-#                       "tradesman/craftsman",
-#                       "unemployed",
-#                       "writer"]
-#
-# for i in range(len(occupation_details)):
-#     users.loc[users['occupation'] == i, 'occupation_detail'] = occupation_details[i]
-# users.rename(columns={'occupation': 'occupation_idx', 'occupation_detail': 'occupation'}, inplace=True)
-#
-# # 对occupation这一列进行onehot编码
-# users = users.join(pd.get_dummies(users['occupation']))
+
+# 把occupation转为具体名称
+users.insert(4, 'occupation_detail', None)
+# 对应0-20
+occupation_details = ["other",
+                      "academic/educator",
+                      "artist",
+                      "clerical/admin",
+                      "college/grad student",
+                      "customer service",
+                      "doctor/health care",
+                      "executive/managerial",
+                      "farmer",
+                      "homemaker",
+                      "K-12 student",
+                      "lawyer",
+                      "programmer",
+                      "retired",
+                      "sales/marketing",
+                      "scientist",
+                      "self-employed",
+                      "technician/engineer",
+                      "tradesman/craftsman",
+                      "unemployed",
+                      "writer"]
+
+for i in range(len(occupation_details)):
+    users.loc[users['occupation'] == i, 'occupation_detail'] = occupation_details[i]
+users.rename(columns={'occupation': 'occupation_idx', 'occupation_detail': 'occupation'}, inplace=True)
+
+# 对occupation这一列进行onehot编码
+users = users.join(pd.get_dummies(users['occupation']))
 
 # *******************************************
 # *************** movies ********************
 # *******************************************
 
 mnames = ['movie_id', 'title', 'genres']
-movies = pd.read_table(f'{path}/movies.dat', sep='::', header=None, names=mnames, encoding='ISO-8859-1',
-                       engine='python')
+movies = pd.read_table(f'{path}/movies.dat', sep='::', header=None, names=mnames, encoding='ISO-8859-1', engine='python')
 
 # 从电影title中提取出电影的年份year
 movies['year'] = movies.title.str.extract("\((\d{4})\)", expand=False)
-# 对year进行one_hot的话，会有81维
-movies = movies.join(pd.get_dummies(movies['year'], prefix="year"))
-movies.drop(columns=['year'], inplace=True)
 
-# 不用电影的title
-movies.drop(columns='title', inplace=True)
-
-# 将分割genres，转换为multi-hot
+# 将分割genres，转换为onehot
 genres_list = ["Action",
                "Adventure",
                "Animation",
@@ -114,7 +94,6 @@ genres_list = ["Action",
 # 增加多个列
 movies[genres_list] = 0
 
-
 # **** for loop is slow ****
 # # 创建一个tqdm对象
 # pbar = enumerate(tqdm(movies['genres'], desc="movies Processing Bar: ", ncols=100))
@@ -127,9 +106,7 @@ def split_genre(row):
     movies.loc[row.name, row['genres'].split('|')] = 1
 
 
-movies.apply(split_genre, axis=1)  # axis=1，每次得到一行数据
-
-movies.drop(columns='genres', inplace=True)
+movies.apply(split_genre, axis=1) # axis=1，每次得到一行数据
 
 # *******************************************
 # ************** ratings ********************
@@ -137,17 +114,6 @@ movies.drop(columns='genres', inplace=True)
 
 rnames = ['user_id', 'movie_id', 'rating', 'timestamp']
 ratings = pd.read_table(f'{path}/ratings.dat', sep='::', header=None, names=rnames, encoding='utf-8', engine='python')
-
-"""
-ratings.rating.value_counts()
-4    348971
-3    261197
-5    226310
-2    107557
-1     56174
-"""
-
-ratings.drop(columns='timestamp', inplace=True)
 
 # 这里我把评分1-5中的1-2转为未点击，3-5转为点击
 ratings['rating'] = ratings['rating'] - 1
@@ -158,6 +124,7 @@ ratings['rating'] = ratings['rating'] - 1
 # 跨越三个表格分析数据并不是一件简单的事情，而将所有表格合并到单个表中会容易很多
 # If you merge all three tables into one table, Data analysis will become easier
 all_data = pd.merge(pd.merge(ratings, users), movies)
+
 
 if __name__ == '__main__':
     print(all_data.head())

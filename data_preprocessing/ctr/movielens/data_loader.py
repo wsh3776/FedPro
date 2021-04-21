@@ -6,6 +6,8 @@ from torch.utils.data import Dataset, TensorDataset, DataLoader
 import numpy as np
 from sklearn.utils import shuffle
 import argparse
+import random
+from itertools import accumulate
 
 
 def parse_args():
@@ -30,6 +32,9 @@ def parse_args():
     parser.add_argument('--proportion_of_test_datasets', type=int, default=0.2, metavar='RPN',
                         help='the proportion of test datasets in total datasets')
 
+    parser.add_argument('--partition_alpha', type=float, default=0.9, metavar='RPN',
+                        help='partition_alpha')
+
     args = parser.parse_known_args()[0]
     return args
 
@@ -37,6 +42,7 @@ def parse_args():
 def get_train_test_dataset(args):
     users, movies, ratings, all_data = get_ctr_movielens_datasets()  # 导入的模块函数
 
+    # 生成负样本
     df_negative_items = get_negative_samples_per_user(users, movies, ratings,
                                                       ratio_of_neg_to_pos=args.ratio_of_neg_to_pos)
 
@@ -110,7 +116,7 @@ class MyDataset(Dataset):
         return len(self.label)
 
 
-def partition_data(partition_method="homo", batch_size=32):
+def partition_data(partition_method="homo"):
     # TODO: add parse_args
     args = parse_args()
 
@@ -121,10 +127,14 @@ def partition_data(partition_method="homo", batch_size=32):
                                                            num_clients=args.client_num_in_total,
                                                            batch_size=args.batch_size)
     elif partition_method == "hetero":
-        pass
+        # alpha越小,异质程度越高
+        train_dataloader, test_dataloader = split_data_non_iid(train_data, test_data, train_label, test_label,
+                                                               num_clients=args.client_num_in_total,
+                                                               alpha=args.partition_alpha,
+                                                               batch_size=args.batch_size)
     elif partition_method == "centralized":
         train_dataloader, test_dataloader = centralized_data(train_data, test_data, train_label, test_label,
-                                                             batch_size=batch_size)
+                                                             batch_size=args.batch_size)
     return train_dataloader, test_dataloader
 
 
@@ -170,8 +180,34 @@ def split_data_iid(train_data, test_data, train_label, test_label, num_clients, 
     return train_dataloader, test_dataloader
 
 
-def split_data_non_iid(data):
-    pass
+def split_data_non_iid(train_data, test_data, train_label, test_label, num_clients, alpha, batch_size):
+    """
+    使用狄利克雷分布划分MNIST数据集为non-iid数据集
+    """
+    train_dataloader, test_dataloader = [], []
+
+    # 把train_data, test_data, train_label, test_label合并下
+    # X_train = torch.as_tensor(train_data, dtype=torch.float32)
+    # Y_train = torch.as_tensor(train_label, dtype=torch.long)
+    # train_ids = MyDataset(X_train, Y_train)
+
+    train_ids = []
+    for data, label in zip(train_data, train_label):
+        train_ids.append((data, int(label)))
+
+    clients_train_data = data_split(train_ids, num_clients, alpha)
+    for client_train_data in clients_train_data:
+        train_dataloader.append(data_to_dataloader(client_train_data, batch_size))
+
+    test_ids = []
+    for data, label in zip(test_data, test_label):
+        test_ids.append((data, int(label)))
+
+    clients_test_data = data_split(test_ids, num_clients, alpha)
+    for client_test_data in clients_test_data:
+        test_dataloader.append(data_to_dataloader(client_test_data, batch_size))
+
+    return train_dataloader, test_dataloader
 
 
 def centralized_data(train_data, test_data, train_label, test_label, batch_size):
@@ -192,3 +228,61 @@ def centralized_data(train_data, test_data, train_label, test_label, batch_size)
     test_dataloader.append(test_loader)
 
     return train_dataloader, test_dataloader
+
+
+# *****************************************************************************************
+"""狄利克雷分布产生non-iid数据集"""
+
+
+def data_split(data, num_clients, alpha):
+    # TODO: alpha不能过小，不然有些客户端会只有0个样本
+    # 解决方法：每个客户端都事先加点样本，或者概率加上一个0.1后作归一化(zs)
+    # return a dict user2data
+    label2data = split_by_label(data)
+    user2data = {i: [] for i in range(num_clients)}
+
+    for label, samples in label2data.items():
+        ret = dirichlet_partition(samples, num_clients, alpha)
+        for user, sample in ret.items():
+            user2data[user] += sample  # [(data_i, 5), (data_j, 5)] += [(data_k, 3), (data_t, 3), ...]
+
+    return list(user2data.values())  # 得到每个客户端划分好后的数据集[client_1_data, ..., client_n_data]
+
+
+def dirichlet_partition(samples, num_clients, alpha):
+    """
+    O(n)
+    """
+    ret = {i: [] for i in range(num_clients)}
+    random.shuffle(samples)
+    # TODO: what does it mean
+    prop = np.random.dirichlet(np.repeat(alpha, num_clients))
+    prop = list(accumulate(prop))
+    i = 0
+    for idx in range(0, len(prop)):
+        pre = i
+        while i / (len(samples)) < prop[idx]:
+            i += 1
+        ret[idx] += samples[pre:i]
+    # for i, sample in enumerate(samples):
+    #     idx = bisect.bisect_left(prop, i/len(samples), 0, len(prop))
+    #     ret[idx].append(sample)
+    return ret
+
+
+def split_by_label(data):
+    ret = {}
+    for sample, label in data:  # sample shape: torch.Size([1, 28, 28])
+        if label not in ret.keys():
+            ret[label] = []
+        ret[label].append((sample, label))
+    # ret: {0: [(data_i, 0), (data_j, 0)], 1: [..., ..., ...], ..., 9: [..., ...]}
+    return ret
+
+
+def data_to_dataloader(data, batch_size):
+    return torch.utils.data.DataLoader(data, batch_size=batch_size, shuffle=True)
+
+
+if __name__ == "__main__":
+    partition_data(partition_method="hetero")

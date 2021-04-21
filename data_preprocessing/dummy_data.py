@@ -38,4 +38,4 @@ def DummyData():
 
 
 if __name__ == '__main__':
-    demoData()
+    DummyData()

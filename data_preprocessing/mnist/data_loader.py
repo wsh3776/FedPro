@@ -136,6 +136,21 @@ def split_data_non_iid(train_data, test_data, num_clients, alpha, batch_size):
 """狄利克雷分布产生non-iid数据集"""
 
 
+def data_split(data, num_clients, alpha):
+    # alpha不能过小，不然有些客户端会只有0个样本
+    # 解决方法：每个客户端都事先加点样本，或者概率加上一个0.1后作归一化(zs)
+    # return a dict user2data
+    label2data = split_by_label(data)
+    user2data = {i: [] for i in range(num_clients)}
+
+    for label, samples in label2data.items():
+        ret = dirichlet_partition(samples, num_clients, alpha)
+        for user, sample in ret.items():
+            user2data[user] += sample  # [(data_i, 5), (data_j, 5)] += [(data_k, 3), (data_t, 3), ...]
+
+    return list(user2data.values())  # 得到每个客户端划分好后的数据集[client_1_data, ..., client_n_data]
+
+
 def dirichlet_partition(samples, num_clients, alpha):
     """
     O(n)
@@ -157,21 +172,6 @@ def dirichlet_partition(samples, num_clients, alpha):
     return ret
 
 
-def dirichlet_partition_2(samples, num_clients, alpha):
-    """
-    O(nlogn)
-    """
-    ret = {i: [] for i in range(num_clients)}
-    random.shuffle(samples)
-    prop = np.random.dirichlet(np.repeat(alpha, num_clients))
-    for i in range(1, len(prop)):
-        prop[i] = prop[i - 1] + prop[i]
-    for i, sample in enumerate(samples):
-        idx = bisect.bisect_left(prop, i / len(samples), 0, len(prop))
-        ret[idx].append(sample)
-    return ret
-
-
 def split_by_label(data):
     ret = {}
     for sample, label in data:  # sample shape: torch.Size([1, 28, 28])
@@ -180,29 +180,6 @@ def split_by_label(data):
         ret[label].append((sample, label))
     # ret: {0: [(data_i, 0), (data_j, 0)], 1: [..., ..., ...], ..., 9: [..., ...]}
     return ret
-
-
-def data_split(data, num_clients, alpha):
-    # return a dict user2data
-    label2data = split_by_label(data)
-    user2data = {i: [] for i in range(num_clients)}
-
-    while True:
-        # 每个客户端至少分到10个数据
-        flag = 0
-        for i, data in user2data.items():
-            if len(data) < 10:
-                flag = 1
-                break
-
-        if flag == 0:
-            break
-        for label, samples in label2data.items():
-            ret = dirichlet_partition(samples, num_clients, alpha)
-            for user, sample in ret.items():
-                user2data[user] += sample  # [(data_i, 5), (data_j, 5)] += [(data_k, 3), (data_t, 3), ...]
-
-    return list(user2data.values())  # 得到每个客户端划分好后的数据集[client_1_data, ..., client_n_data]
 
 
 def data_to_dataloader(data, batch_size):

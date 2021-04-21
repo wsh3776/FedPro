@@ -7,18 +7,19 @@ import copy
 import wandb
 
 
-class Client():
+class Client:
     def __init__(self, user_id, train_dataloader=None, test_dataloader=None,
-                 model=None, epoch=10, lr=0.01, optimizer='sgd', device='cuda'):
+                 model=None, epoch=10, lr=0.01, lr_decay=0.998, decay_step=20, optimizer='sgd', device='cuda'):
         self.user_id = user_id
         self.train_dataloader = train_dataloader
         self.test_dataloader = test_dataloader
         self.model = model  # 创建本地模型
         self.epoch = epoch
         self.lr = lr
+        self.lr_decay = lr_decay
+        self.decay_step = decay_step
         self.optimizer = optimizer
         self.device = device
-
 
     def update_local_dataset(self, client):
         # 传进来一个被选择的模型client，用他的属性更新当前槽位surrogate的属性
@@ -34,7 +35,7 @@ class Client():
         # params = model.state_dict() is shadow copy
         return self.model.cpu().state_dict()
 
-    def train(self):
+    def train(self, round_th):
         """
         本地模型训练
         :return:
@@ -43,12 +44,15 @@ class Client():
         model.to(device=self.device)
         model.train()  # 使用Dropout, BatchNorm
 
-        criterion = nn.CrossEntropyLoss(reduction='mean')
+        criterion = nn.CrossEntropyLoss(reduction='mean').to(self.device)
         if self.optimizer == "sgd":
-            optimizer = optim.SGD(model.parameters(), lr=self.lr)
+            optimizer = optim.SGD(model.parameters(), lr=self.lr * self.lr_decay ** (round_th / self.decay_step),
+                                  momentum=0.9, weight_decay=3e-4)
+            # sgd要写学习率衰减，但是adam中不用
+            # weight_decay就是正则化里的lambda
+            # 权重衰减（L2正则化）的作用
         elif self.optimizer == "adam":
-            optimizer = optim.Adam(model.parameters(), lr=self.lr)
-
+            optimizer = optim.Adam(model.parameters(), lr=self.lr, betas=(0.9, 0.999), weight_decay=0)
 
         batch_loss = []
         for epoch in range(self.epoch):
@@ -98,7 +102,7 @@ class Client():
             print("\nPlease input right dataset!!!")
             exit()
 
-        criterion = torch.nn.CrossEntropyLoss(reduction='mean')
+        criterion = torch.nn.CrossEntropyLoss(reduction='mean').to(self.device)
 
         num_correct = 0
         client_num = 0
@@ -121,7 +125,7 @@ class Client():
                 # print((predicted == labels).sum()) # tensor(1)
                 batch_loss.append(loss)
                 num_correct += (predicted == labels).sum().item()
-                # 为了计算全局的precisision，auc等指标
+                # 为了计算全局的precision，auc等指标
                 client_predicted += (list(predicted.cpu().numpy()))
                 client_labels += (list(labels.cpu().numpy()))
 

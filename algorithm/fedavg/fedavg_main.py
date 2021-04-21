@@ -1,9 +1,4 @@
-"""
-Python的命名规范
-文件名、变量名、函数名全部小写 + 下划线 partition_data, load_cifar10_data等
-类名应采用驼峰命名法，如CrossEntropyLoss，MyServer，Base不要使用下划线
-常量全部字母大小
-"""
+# FedAvg Algorithm
 import os
 import sys
 import torch
@@ -20,7 +15,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description='*******FedAvg Experiments Params*******')
 
     parser.add_argument('--model', type=str, default='cnn_mnist', metavar='N',
-                        choices=['cnn_mnist', 'lr_ctr'],
+                        choices=['cnn_mnist', 'lr_ctr', 'dnn_ctr'],
                         help='model used for training')
 
     parser.add_argument('--dataset', type=str, default='mnist', metavar='D',
@@ -52,7 +47,7 @@ def parse_args():
     parser.add_argument('--epoch', type=int, default=2, metavar='E',
                         help='how many epochs will be trained locally')
 
-    parser.add_argument('--eval_interval', type=int, default=1, metavar='EV',
+    parser.add_argument('--eval_interval', type=int, default=2, metavar='EV',
                         help='the interval communication rounds to do an evaluation on all train/test datasets')
 
     parser.add_argument('--seed', type=int, default=1, metavar='S',
@@ -66,18 +61,19 @@ def parse_args():
                         choices=['run', 'disabled', 'offline'],
                         help='Whether to use wandb to visualize experimental results (run, disabled, offline)')
 
-    parser.add_argument('--notes', type=str, default='weak baseline', metavar='NT',
+    parser.add_argument('--notes', type=str, default='', metavar='NT',
                         help='wandb remark information')
 
-    args = parser.parse_args()
+    parser.add_argument('--lr_decay', help='sgd: decay rate for learning rate', type=float, default=0.998)
+
+    parser.add_argument('--decay_step', help='sgd: decay step for learning rate', type=int, default=200)
+
+    args = parser.parse_known_args()[0]
     return args
 
 
 if __name__ == '__main__':
-    # get parameters
     args = parse_args()
-
-    # args.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     if args.partition_method == "centralized":
         args.client_num_in_total = 1
@@ -86,16 +82,16 @@ if __name__ == '__main__':
     # 使模型随机性+dataloader shuffle不具有随机性
     # 随机选择客户端的随机性要动态的
     np.random.seed(args.seed)
-    torch.manual_seed(args.seed)  # recurrence experiment
+    torch.manual_seed(args.seed)
     torch.cuda.manual_seed(args.seed)
     torch.cuda.manual_seed_all(args.seed)
 
     # 初始化wandb
-    wandb.init(project="FedPro_test",
+    wandb.init(project="FedPro",
                name=str(args.dataset) + "_" + str(args.partition_method) + "_" + str(args.notes),  # 这个是图表的名称
-               notes=args.notes,  # https://docs.wandb.ai/library#logged-with-specific-calls
                tags=['GPU', 'working'],
-               mode=args.wandb_mode,  # run, disabled
+               notes=args.notes,  # https://docs.wandb.ai/library#logged-with-specific-calls
+               mode=args.wandb_mode,
                config=args)
 
     print(f"############## Running FedAvg With ##############\n"
@@ -105,7 +101,7 @@ if __name__ == '__main__':
           f"num_rounds:\t\t\t\t\t{args.num_rounds}\n"
           f"client_num_in_total:\t\t{args.client_num_in_total}\n"
           f"client_num_per_round:\t\t{args.client_num_per_round}\n"
-          f"settings:\t\t\t\t\t{args.partition_method}\n"
+          f"partition_method:\t\t\t{args.partition_method}\n"
           f"eval_interval:\t\t\t\t{args.eval_interval}\n"
           f"batch_size:\t\t\t\t\t{args.batch_size}\n"
           f"epoch:\t\t\t\t\t\t{args.epoch}\n"
