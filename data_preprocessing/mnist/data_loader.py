@@ -22,14 +22,14 @@ def parse_args():
     parser.add_argument('--batch_size', type=int, default=32, metavar='BS',
                         help='input batch size for training (default: 64)')
 
-    parser.add_argument('--partition_alpha', type=int, default=0.28, metavar='RPN',
+    parser.add_argument('--partition_alpha', type=float, default=0.28, metavar='RPN',
                         help='partition_alpha')
 
     args = parser.parse_known_args()[0]
     return args
 
 
-def partition_data(partition_method="hetero", batch_size=32):
+def partition_data(partition_method="hetero"):
     args = parse_args()
 
     train_data, test_data = get_datasets()
@@ -40,10 +40,10 @@ def partition_data(partition_method="hetero", batch_size=32):
     elif partition_method == "hetero":
         # TODO: num_clients和alpha最好作为args参数传入
         # alpha越小,异质程度越高
-        train_dataloader, test_dataloader = split_data_noniid(train_data, test_data,
-                                                              num_clients=args.client_num_in_total,
-                                                              alpha=args.partition_alpha,
-                                                              batch_size=args.batch_size)
+        train_dataloader, test_dataloader = split_data_non_iid(train_data, test_data,
+                                                               num_clients=args.client_num_in_total,
+                                                               alpha=args.partition_alpha,
+                                                               batch_size=args.batch_size)
     elif partition_method == "centralized":
         train_dataloader, test_dataloader = centralized_data(train_data, test_data, batch_size=args.batch_size)
     return train_dataloader, test_dataloader
@@ -51,14 +51,14 @@ def partition_data(partition_method="hetero", batch_size=32):
 
 def centralized_data(train_data, test_data, batch_size=32):
     """
-    client_num_in_total:  1
-    client_num_per_round: 1
-    :param batch_size: DataLoader
-    :return: list
 
     Args:
-        test_data:
         train_data:
+        test_data:
+        batch_size:
+
+    Returns:
+
     """
     train_dataloader, test_dataloader = [], []
 
@@ -115,7 +115,7 @@ def split_data_iid(train_data, test_data, num_clients, batch_size):
     return train_dataloader, test_dataloader
 
 
-def split_data_noniid(train_data, test_data, num_clients, alpha, batch_size):
+def split_data_non_iid(train_data, test_data, num_clients, alpha, batch_size):
     """
     使用狄利克雷分布划分MNIST数据集为non-iid数据集
     """
@@ -145,8 +145,6 @@ def dirichlet_partition(samples, num_clients, alpha):
     # TODO: what does it mean
     prop = np.random.dirichlet(np.repeat(alpha, num_clients))
     prop = list(accumulate(prop))
-    # for i in range(1, len(prop)):
-    #     prop[i] = prop[i - 1] + prop[i]
     i = 0
     for idx in range(0, len(prop)):
         pre = i
@@ -188,10 +186,22 @@ def data_split(data, num_clients, alpha):
     # return a dict user2data
     label2data = split_by_label(data)
     user2data = {i: [] for i in range(num_clients)}
-    for label, samples in label2data.items():
-        ret = dirichlet_partition(samples, num_clients, alpha)
-        for user, samples in ret.items():
-            user2data[user] += ret[user]  # [(data_i, 5), (data_j, 5)] += [(data_k, 3), (data_t, 3), ...]
+
+    while True:
+        # 每个客户端至少分到10个数据
+        flag = 0
+        for i, data in user2data.items():
+            if len(data) < 10:
+                flag = 1
+                break
+
+        if flag == 0:
+            break
+        for label, samples in label2data.items():
+            ret = dirichlet_partition(samples, num_clients, alpha)
+            for user, sample in ret.items():
+                user2data[user] += sample  # [(data_i, 5), (data_j, 5)] += [(data_k, 3), (data_t, 3), ...]
+
     return list(user2data.values())  # 得到每个客户端划分好后的数据集[client_1_data, ..., client_n_data]
 
 
@@ -202,4 +212,4 @@ def data_to_dataloader(data, batch_size):
 # *****************************************************************************************
 
 if __name__ == "__main__":
-    partition_data(partition_method="hetero", batch_size=32)
+    partition_data(partition_method="hetero")
