@@ -1,12 +1,12 @@
-# FedAvg Algorithm
 import os
 import sys
 import torch
 import wandb
 import numpy as np
 import argparse
+import random
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))  # add project to PYTHONPATH
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
 
 from algorithm.fedavg.server import Server
 
@@ -14,8 +14,8 @@ from algorithm.fedavg.server import Server
 def parse_args():
     parser = argparse.ArgumentParser(description='*******FedAvg Experiments Params*******')
 
-    parser.add_argument('--model', type=str, default='cnn_mnist', metavar='N',
-                        choices=['cnn_mnist', 'lr_ctr', 'dnn_ctr'],
+    parser.add_argument('--model', type=str, default='cnn', metavar='N',
+                        choices=['cnn', 'mlp'],
                         help='model used for training')
 
     parser.add_argument('--dataset', type=str, default='mnist', metavar='D',
@@ -72,6 +72,15 @@ def parse_args():
     return args
 
 
+def setup_seed(seed):
+    random.seed(seed)                          # 为python设置随机种子
+    np.random.seed(seed)                       # 为numpy设置随机种子
+    torch.manual_seed(seed)                    # 为CPU设置随机种子
+    torch.cuda.manual_seed(seed)               # 为单个GPU设置随机种子
+    torch.cuda.manual_seed_all(seed)           # 为所有GPU设置随机种子
+    torch.backends.cudnn.deterministic = True  # 消除cudnn卷积操作优化的精度损失
+
+
 if __name__ == '__main__':
     args = parse_args()
 
@@ -79,20 +88,16 @@ if __name__ == '__main__':
         args.client_num_in_total = 1
         args.client_num_per_round = 1
 
-    # 使模型随机性+dataloader shuffle不具有随机性
-    # 随机选择客户端的随机性要动态的
-    np.random.seed(args.seed)
-    torch.manual_seed(args.seed)
-    torch.cuda.manual_seed(args.seed)
-    torch.cuda.manual_seed_all(args.seed)
+    # Reproduction : select clients per round, dataloader shuffle, model parameter init...
+    setup_seed(args.seed)
 
-    # 初始化wandb
     wandb.init(project="FedPro",
-               name=str(args.dataset) + "_" + str(args.partition_method) + "_" + str(args.notes),  # 这个是图表的名称
+               name=str(args.dataset) + "_" + str(args.partition_method) + "_" + str(args.notes),
                tags=['GPU', 'working'],
-               notes=args.notes,  # https://docs.wandb.ai/library#logged-with-specific-calls
+               notes=args.notes,
                mode=args.wandb_mode,
                config=args)
+    # Docs: https://docs.wandb.ai/library#logged-with-specific-calls
 
     print(f"############## Running FedAvg With ##############\n"
           f"algorithm:\t\t\t\t\tfedavg\n"
