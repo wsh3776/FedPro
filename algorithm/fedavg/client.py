@@ -1,4 +1,3 @@
-from models.fedavg.mnist import MNIST
 import torch
 import torch.optim as optim
 import torch.nn as nn
@@ -33,7 +32,7 @@ class Client:
 
     def get_params(self):
         # params = model.state_dict() is shadow copy
-        return self.model.cpu().state_dict()
+        return copy.deepcopy(self.model.cpu().state_dict())
 
     def train(self, round_th):
         """
@@ -46,8 +45,10 @@ class Client:
 
         criterion = nn.CrossEntropyLoss(reduction='mean').to(self.device)
         if self.optimizer == "sgd":
-            optimizer = optim.SGD(model.parameters(), lr=self.lr * self.lr_decay ** (round_th / self.decay_step),
-                                  momentum=0.9, weight_decay=3e-4)
+            optimizer = optim.SGD(model.parameters(),
+                                  lr=self.lr * self.lr_decay ** (round_th / self.decay_step),
+                                  momentum=0.9,
+                                  weight_decay=3e-4)
             # sgd要写学习率衰减，但是adam中不用
             # weight_decay就是正则化里的lambda
             # 权重衰减（L2正则化）的作用
@@ -65,6 +66,8 @@ class Client:
                 batch_loss.append(loss)
                 loss.backward()
                 optimizer.step()
+                # print(model.cpu().state_dict()['fc1.weight'].sum())
+                # exit()
 
                 # # https://docs.wandb.ai/library#logged-with-specific-calls
                 # wandb.watch(model)

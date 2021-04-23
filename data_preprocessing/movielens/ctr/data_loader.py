@@ -1,5 +1,5 @@
 # 这里要写完整的路径
-from data_preprocessing.ctr.movielens.datasets import get_ctr_movielens_datasets, get_negative_samples_per_user
+from data_preprocessing.movielens.ctr.datasets import get_ctr_movielens_datasets, get_negative_samples_per_user
 from sklearn.model_selection import train_test_split
 import torch
 from torch.utils.data import Dataset, TensorDataset, DataLoader
@@ -90,9 +90,9 @@ def get_train_test_dataset(args):
     ratings = shuffle(ratings, random_state=42)
 
     # TODO: 100万条数据我先取前面10000条，这样速度快一点
-    X = ratings[features][:100000]
+    X = ratings[features][:200000]
     X = X.values  # pandas -> numpy
-    Y = ratings[labels][:100000]
+    Y = ratings[labels][:200000]
     Y = Y.values.reshape(len(Y))  # pandas -> numpy
     # array([1, 1, 1, ..., 0, 1, 1])
 
@@ -145,7 +145,7 @@ def split_data_iid(train_data, test_data, train_label, test_label, num_clients, 
     # 随机打乱数据集的seed，划分成iid
     train_X = train_data
     train_Y = train_label
-    train_X, train_Y = shuffle(train_X, train_Y, random_state=42)
+    train_X, train_Y = shuffle(train_X, train_Y, random_state=12)
 
     # array_split 划分数据集，不均匀不会报错
     train_X_list = np.array_split(train_X, num_clients)

@@ -1,19 +1,18 @@
+import wandb
+import copy
 import numpy as np
 from algorithm.fedavg.client import Client
 from tqdm import tqdm
-import wandb
-from sklearn.metrics import accuracy_score
 from sklearn.metrics import precision_score
 from sklearn.metrics import recall_score
 from sklearn.metrics import f1_score
 from sklearn.metrics import roc_auc_score
 
 from data_preprocessing.dummy_data import DummyData
-from data_preprocessing.ctr.movielens.data_loader import partition_data as partition_data_ctr_movielens
 from data_preprocessing.mnist.data_loader import partition_data as partition_data_mnist
-from models.fedavg.mnist import MNIST
-from models.fedavg.lr import LogisticRegression
-from models.fedavg.dnn import DNN
+from data_preprocessing.movielens.ctr.data_loader import partition_data as partition_data_movielens
+from models.fedavg.mnist.cnn import CNN
+from models.fedavg.movielens.mlp import MLP
 
 
 class Server:
@@ -31,41 +30,52 @@ class Server:
         self.eval_interval = args.eval_interval
         self.seed = args.seed
         self.device = args.device
-
         self.lr_decay = args.lr_decay
         self.decay_step = args.decay_step
 
-        self.selected_clients_idx = []
-        self.clients = []
-        self.model = self._select_model(self.model_name)  # 创建对应的模型
-        # use client_num_per_round models to train all data
-        # 设置k个模型来训练每轮被选择的K个客户端
-        self.surrogate = self._setup_surrogate()  # 会用到self.model
-        # Add datasets into each client: self.clients
+        self.clients: list = None
+        self.surrogates: list = None
+        self.model = None
+        self.global_params = None
+
+    def federate(self):
+        print("Begin Federating!")
+        print(f"Training among {self.client_num_in_total} clients! \n")
+
+        self.model = self._select_model(self.model_name)
+        # get the initialized global model params
+        self.global_params = copy.deepcopy(self.model.state_dict())
         self.clients = self._setup_clients()
-        self.global_params = self.model.state_dict()  # 设置为全局模型的参数
-        self.updates = []
+        self.surrogates = self._setup_surrogate()
+
+        # server-client communication
+        for round_th in range(self.num_rounds):
+            updates = self._train_on_clients(round_th)
+
+            self._aggregate_and_update_global_params(updates)
+
+            if round_th % self.eval_interval == 0:
+                self._eval_global_model(round_th)
 
     @staticmethod
     def _select_model(model_name):
         model = None
-        if model_name == 'cnn_mnist':
-            model = MNIST()
-        elif model_name == 'lr_ctr':
-            model = LogisticRegression(input_dim=129, output_dim=5)
-        elif model_name == 'dnn_ctr':
+        if model_name == 'cnn':
+            model = CNN()
+        elif model_name == 'mlp':
             # user_id, movie_id进行embedding的网络模型
-            model = DNN(output_dim=2)
+            model = MLP(output_dim=2)
         return model
 
     # TODO: load data
     def get_dataloader(self):
+        # 多个if-else最好加个注释，可以接收哪几个参数
         if self.dataset == "dummy":
             train_dataloader, test_dataloader = DummyData()
         elif self.dataset == "mnist":
             train_dataloader, test_dataloader = partition_data_mnist(self.partition_method)
-        elif self.dataset == "ctr_movielens":
-            train_dataloader, test_dataloader = partition_data_ctr_movielens(self.partition_method)
+        elif self.dataset == "movielens":
+            train_dataloader, test_dataloader = partition_data_movielens(self.partition_method)
         # 如果想跑集中式，我只要把参数并在一起就行了
         # if self.centralized==True:
         return train_dataloader, test_dataloader
@@ -102,13 +112,13 @@ class Server:
         # print(surrogate[0].model)
         return surrogate
 
-    def _aggregate(self):
-        n = sum([n_k for (params, n_k) in self.updates])
+    def _aggregate_and_update_global_params(self, updates):
+        n = sum([n_k for (params, n_k) in updates])
 
-        new_params = self.updates[0][0]
-        for key in self.updates[0][0].keys():  # key: cov1.weight, cov1.bias...
-            for i in range(len(self.updates)):
-                client_params, n_k = self.updates[i]
+        new_params = updates[0][0]
+        for key in updates[0][0].keys():  # key: cov1.weight, cov1.bias...
+            for i in range(len(updates)):
+                client_params, n_k = updates[i]
                 if i == 0:
                     new_params[key] = client_params[key] * n_k / n
                 else:
@@ -117,26 +127,27 @@ class Server:
         self.global_params = new_params
         return self
 
-    def _train_on_clients(self, round_th):
+    def _train_on_clients(self, round_th, updates=[]):
         selected_clients_index = self._select_clients(round_th=round_th)
+        print(selected_clients_index)
         print("-" * 50)
         print(f"Round {round_th}")
         print("train local models:")
         # print(selected_clients_index)
-        self.updates = []  # 每轮通信清空这个updates
         for k in tqdm(range(self.client_num_per_round)):
             # 训练时只把参数发给被选中的客户端
-            surrogate = self.surrogate[k]  # 放到第k个槽位上
+            surrogate = self.surrogates[k]  # 放到第k个槽位上
             surrogate.update_local_dataset(self.clients[selected_clients_index[k]])  # update datasets and params
             surrogate.set_params(self.global_params)
             # 得到参数，这里的sample_loss其实没什么用，因为我们还没有更新全局模型
             # 本地训练 local client train
             local_params, train_data_num, sample_loss \
                 = surrogate.train(round_th)
-            self.updates.append((local_params, train_data_num))
-        return self  # 返回这个类
+            # print(local_params['fc2.weight'].sum().item())
+            updates.append((local_params, train_data_num))
+        return updates
 
-    def _test_global_model(self, round):
+    def _eval_global_model(self, round):
         print("evaluate global model:")
 
         # eval on train data
@@ -178,36 +189,11 @@ class Server:
         wandb.log({"test/acc": avg_acc_test_all, "round": round})
         wandb.log({"test/loss": avg_loss_test_all, "round": round})
 
-        # # eval on test data
-        # all_test_labels, all_test_predicted, acc_test_list, loss_test_list = self._eval_model(dataset='test')
-        # avg_acc_test_all = self.avg_metric(acc_test_list)
-        # avg_loss_test_all = self.avg_metric(loss_test_list)
-        # wandb.log({"Test/acc": avg_acc_test_all, "round": round})
-        # wandb.log({"Test/loss": avg_loss_test_all, "round": round})
-
         print()
         print(f"[TRAIN] Avg acc: {avg_acc_train_all * 100:.3f}%, Avg loss: {avg_loss_train_all:.5f}")
         print(f"[TEST]  Avg acc: {avg_acc_test_all * 100:.3f}%, Avg loss: {avg_loss_test_all:.5f}")
         # print("-" * 50)
         print()
-
-    def federate(self):
-        print("Begin Federating!")
-        print(f"Training among {self.client_num_in_total} clients! \n")
-
-        # TODO: (代码整洁之道）这里train和test两个功能应该包裹成两个函数，不要写在一起
-        for t in range(self.num_rounds):
-            """
-            server-client communication round t
-            """
-            self._train_on_clients(t)._aggregate()  # 训练 + 更新self.global_params
-
-            # 间隔多久用当前的全局模型参数做一次所有训练集和测试集的测试
-            # 测试时要把参数发给所有的客户端
-            if t % self.eval_interval == 0:
-                self._test_global_model(t)
-
-        # update global model params
 
     def _eval_model(self, dataset: str = 'test'):
         """
@@ -226,12 +212,13 @@ class Server:
         all_predicted = []
 
         for k in tqdm(range(self.client_num_in_total)):
-            surrogate = self.surrogate[k % self.client_num_per_round]  # 放到槽位上去算
+            surrogate = self.surrogates[k % self.client_num_per_round]  # 放到槽位上去算
             surrogate.update_local_dataset(self.clients[k])  # update dataset and params
             surrogate.set_params(self.global_params)
 
             # 把所有的predicted结果整合起来
-            client_labels, client_predicted, client_num, accuracy, avg_loss = surrogate.test(dataset=dataset)  # 在本地模型上进行测试
+            client_labels, client_predicted, client_num, accuracy, avg_loss = surrogate.test(
+                dataset=dataset)  # 在本地模型上进行测试
             all_labels += client_labels
             all_predicted += client_predicted
             acc_list.append((client_num, accuracy))

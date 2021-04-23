@@ -1,19 +1,24 @@
 """
-_b1表示备份文件1
-这个文件是处理movielens-1m数据集的（用于模拟联邦点击率预测ctr实验）
-（这里我把评分1-5中的1-2转为未点击，3-5转为点击）
+这个文件是处理movielens-1m数据集的（用于推荐系统实验，评分1-5）
 在别的模块可以直接用from xxx/datasets import users, movies, ratings, all_data的方式导入
 """
 import pandas as pd
 from tqdm import tqdm
 import os
 import time, random
+from pathlib import Path
 
-# path: https://ugirc.blog.csdn.net/article/details/115645345
-# os.path.dirname(__file__) 获得当前模块的绝对路径
-# 用os.path.join可以返回上一级..
-path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")) + '/data/MovieLens/1m'
-# 不建议用os.getcwd()
+"""这种path的写法似乎有点问题吧，在别的地方运行会出错
+# Get absolute path.
+p = Path()
+# absolute path
+ap = str(p.resolve()).replace('\\', '/')
+path = ap + r'/data/MovieLens/movielens'
+print(ap)
+"""
+
+# path = r'../../../data/MovieLens/rec' 不推荐这么写，也不要用os.getcwd()
+path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")) + '/data/MovieLens/rec'
 
 pd.set_option('display.max_columns', 20)
 pd.set_option('display.max_rows', 100)
@@ -23,11 +28,7 @@ pd.set_option('display.max_rows', 100)
 # *******************************************
 
 unames = ['user_id', 'gender', 'age', 'occupation', 'zip']
-users = pd.read_table(f'{path}/users.dat', sep="::", header=None, names=unames, encoding='utf-8', engine="python")
-
-# 性别'F','M'转为0,1
-users['gender'] = users['gender'].apply(lambda x : 0 if x == 'F' else 1)
-
+users = pd.read_table(f'{path}/users.dat', sep="::", header=None, names=unames, engine='python')
 
 # 把occupation转为具体名称
 users.insert(4, 'occupation_detail', None)
@@ -66,7 +67,8 @@ users = users.join(pd.get_dummies(users['occupation']))
 # *******************************************
 
 mnames = ['movie_id', 'title', 'genres']
-movies = pd.read_table(f'{path}/movies.dat', sep='::', header=None, names=mnames, encoding='ISO-8859-1', engine='python')
+movies = pd.read_table(f'{path}/movies.dat', sep='::', header=None, names=mnames, encoding="ISO-8859-1",
+                       engine='python')
 
 # 从电影title中提取出电影的年份year
 movies['year'] = movies.title.str.extract("\((\d{4})\)", expand=False)
@@ -108,23 +110,18 @@ def split_genre(row):
 
 movies.apply(split_genre, axis=1) # axis=1，每次得到一行数据
 
+
 # *******************************************
 # ************** ratings ********************
 # *******************************************
 
 rnames = ['user_id', 'movie_id', 'rating', 'timestamp']
-ratings = pd.read_table(f'{path}/ratings.dat', sep='::', header=None, names=rnames, encoding='utf-8', engine='python')
-
-# 这里我把评分1-5中的1-2转为未点击，3-5转为点击
-ratings['rating'] = ratings['rating'] - 1
-# ratings.loc[ratings['rating'] < 3, 'rating'] = 0
-# ratings.loc[ratings['rating'] >= 3, 'rating'] = 1
+ratings = pd.read_table(f'{path}/ratings.dat', sep='::', header=None, names=rnames, engine='python')
 
 # Note: 不要上来就把三个表格合并，要把三个表格先分别处理好，如onehot，不然后续处理都是100万条数据了
 # 跨越三个表格分析数据并不是一件简单的事情，而将所有表格合并到单个表中会容易很多
 # If you merge all three tables into one table, Data analysis will become easier
 all_data = pd.merge(pd.merge(ratings, users), movies)
-
 
 if __name__ == '__main__':
     print(all_data.head())
@@ -132,6 +129,5 @@ if __name__ == '__main__':
     print(all_data.columns)
 
     # 把处理好的数据保存到csv文件里
-    # 会保存在服务器上，本地不会及时出现
     # data.to_csv("movielens-movielens-data.csv", index=0)  # index=0不保存行索引, head=0不保存行索引
     print("Proprocessing End!")

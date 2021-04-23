@@ -166,9 +166,6 @@ def dirichlet_partition(samples, num_clients, alpha):
         while i / (len(samples)) < prop[idx]:
             i += 1
         ret[idx] += samples[pre:i]
-    # for i, sample in enumerate(samples):
-    #     idx = bisect.bisect_left(prop, i/len(samples), 0, len(prop))
-    #     ret[idx].append(sample)
     return ret
 
 
@@ -189,4 +186,4 @@ def data_to_dataloader(data, batch_size):
 # *****************************************************************************************
 
 if __name__ == "__main__":
-    partition_data(partition_method="hetero")
+    train_dataloader, test_dataloader = partition_data(partition_method="homo")
