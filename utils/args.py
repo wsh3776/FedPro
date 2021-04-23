@@ -6,7 +6,7 @@ import argparse
 # Optional Datasets
 DATASETS = ['mnist', 'femnist', 'cifar10', 'cifar100']
 # Optional Algorithms
-MODELS = ['fedavg', 'fedprox', 'fednova']
+MODELS = ['fedavg', 'fedprox', 'fednova', 'add line']
 
 
 def parse_args():
