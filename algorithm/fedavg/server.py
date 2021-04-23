@@ -147,7 +147,7 @@ class Server:
             updates.append((local_params, train_data_num))
         return updates
 
-    def _eval_global_model(self, round):
+    def _eval_global_model(self, round_th):
         print("evaluate global model:")
 
         # eval on train data
@@ -162,13 +162,13 @@ class Server:
             train_f1 = f1_score(all_train_labels, all_train_predicted)
             train_auc = roc_auc_score(all_train_labels, all_train_predicted)
 
-            wandb.log({"Train/precision": train_precision, "round": round})
-            wandb.log({"Train/recall": train_recall, "round": round})
-            wandb.log({"Train/f1": train_f1, "round": round})
-            wandb.log({"Train/auc": train_auc, "round": round})
+            wandb.log({"Train/precision": train_precision, "round": round_th})
+            wandb.log({"Train/recall": train_recall, "round": round_th})
+            wandb.log({"Train/f1": train_f1, "round": round_th})
+            wandb.log({"Train/auc": train_auc, "round": round_th})
 
-        wandb.log({"Train/acc": avg_acc_train_all, "round": round})
-        wandb.log({"Train/loss": avg_loss_train_all, "round": round})
+        wandb.log({"Train/acc": avg_acc_train_all, "round": round_th})
+        wandb.log({"Train/loss": avg_loss_train_all, "round": round_th})
 
         # eval on test data
         all_test_labels, all_test_predicted, acc_test_list, loss_test_list = self._eval_model(dataset='test')
@@ -181,13 +181,13 @@ class Server:
             test_f1 = f1_score(all_test_labels, all_test_predicted)
             test_auc = roc_auc_score(all_test_labels, all_test_predicted)
 
-            wandb.log({"test/precision": test_precision, "round": round})
-            wandb.log({"test/recall": test_recall, "round": round})
-            wandb.log({"test/f1": test_f1, "round": round})
-            wandb.log({"test/auc": test_auc, "round": round})
+            wandb.log({"test/precision": test_precision, "round": round_th})
+            wandb.log({"test/recall": test_recall, "round": round_th})
+            wandb.log({"test/f1": test_f1, "round": round_th})
+            wandb.log({"test/auc": test_auc, "round": round_th})
 
-        wandb.log({"test/acc": avg_acc_test_all, "round": round})
-        wandb.log({"test/loss": avg_loss_test_all, "round": round})
+        wandb.log({"test/acc": avg_acc_test_all, "round": round_th})
+        wandb.log({"test/loss": avg_loss_test_all, "round": round_th})
 
         print()
         print(f"[TRAIN] Avg acc: {avg_acc_train_all * 100:.3f}%, Avg loss: {avg_loss_train_all:.5f}")
