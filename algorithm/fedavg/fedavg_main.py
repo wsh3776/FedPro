@@ -12,6 +12,47 @@ from algorithm.fedavg.server import Server
 
 
 def parse_args():
+    # args default values
+    config = {
+        "model": 'mlp',
+        "dataset": 'movielens',
+        "client_num_in_total": 200,
+        "client_num_per_round": 40,
+        "num_rounds": 500,
+        "partition_method": 'homo',
+        "client_optimizer": 'adam',
+        "lr": 0.01,
+        "batch_size": 32,
+        "epoch": 2,
+        "eval_interval": 1,
+        "seed": 42,
+        "device": 'cuda',
+        "lr_decay": 0.998,
+        "decay_step": 200,
+        "wandb_mode": 'run',
+        "notes": 'dev',
+    }
+
+    config_mnist = {
+        "model": 'cnn',
+        "dataset": 'mnist',
+        "client_num_in_total": 200,
+        "client_num_per_round": 20,
+        "num_rounds": 500,
+        "partition_method": 'hetero',
+        "client_optimizer": 'sgd',
+        "lr": 0.003,
+        "batch_size": 32,
+        "epoch": 2,
+        "eval_interval": 1,
+        "seed": 42,
+        "device": 'cuda',
+        "lr_decay": 0.998,
+        "decay_step": 200,
+        "wandb_mode": 'run',
+        "notes": '',
+    }
+
     parser = argparse.ArgumentParser(description='*******FedAvg Experiments Params*******')
 
     parser.add_argument('--model', type=str, default='cnn', metavar='N',
@@ -68,6 +109,10 @@ def parse_args():
 
     parser.add_argument('--decay_step', help='sgd: decay step for learning rate', type=int, default=200)
 
+    # use values from config dict by default
+    parser.set_defaults(**config)
+
+    # override with command line arguments when provided
     args = parser.parse_known_args()[0]
     return args
 
@@ -78,6 +123,7 @@ def setup_seed(seed):
     torch.manual_seed(seed)                    # 为CPU设置随机种子
     torch.cuda.manual_seed(seed)               # 为单个GPU设置随机种子
     torch.cuda.manual_seed_all(seed)           # 为所有GPU设置随机种子
+    torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.deterministic = True  # 消除cudnn卷积操作优化的精度损失
 
 
@@ -87,6 +133,8 @@ if __name__ == '__main__':
     if args.partition_method == "centralized":
         args.client_num_in_total = 1
         args.client_num_per_round = 1
+
+    assert args.client_num_in_total >= args.client_num_per_round, "choose too much clients per round"
 
     # Reproduction : select clients per round, dataloader shuffle, model parameter init...
     setup_seed(args.seed)

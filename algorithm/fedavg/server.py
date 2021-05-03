@@ -34,11 +34,12 @@ class Server:
         self.decay_step = args.decay_step
 
         self.clients: list = None
-        self.surrogates: list = None
+        self.agents: list = None
         self.model = None
         self.global_params = None
 
     def federate(self):
+        """federated learning"""
         print("Begin Federating!")
         print(f"Training among {self.client_num_in_total} clients! \n")
 
@@ -46,7 +47,7 @@ class Server:
         # get the initialized global model params
         self.global_params = copy.deepcopy(self.model.state_dict())
         self.clients = self._setup_clients()
-        self.surrogates = self._setup_surrogate()
+        self.agents = self._setup_agents()
 
         # server-client communication
         for round_th in range(self.num_rounds):
@@ -73,9 +74,13 @@ class Server:
         if self.dataset == "dummy":
             train_dataloader, test_dataloader = DummyData()
         elif self.dataset == "mnist":
-            train_dataloader, test_dataloader = partition_data_mnist(self.partition_method)
+            train_dataloader, test_dataloader = partition_data_mnist(self.partition_method,
+                                                                     self.client_num_in_total,
+                                                                     self.batch_size)
         elif self.dataset == "movielens":
-            train_dataloader, test_dataloader = partition_data_movielens(self.partition_method)
+            train_dataloader, test_dataloader = partition_data_movielens(self.partition_method,
+                                                                         self.client_num_in_total,
+                                                                         self.batch_size)
         # 如果想跑集中式，我只要把参数并在一起就行了
         # if self.centralized==True:
         return train_dataloader, test_dataloader
@@ -90,7 +95,7 @@ class Server:
     def _setup_clients(self):
         # setup all clients (actually we just want to store the data into client)
         train_dataloader, test_dataloader = self.get_dataloader()
-        # 这里不需要传递epoch,lr,model_name，因为这些每个客户端是一样的，我只要在surrogate里设置就行了
+        # 这里不需要传递epoch,lr,model_name，因为这些每个客户端是一样的，我只要在agent里设置就行了
         clients = [
             Client(user_id=i,
                    train_dataloader=train_dataloader[i],
@@ -98,19 +103,19 @@ class Server:
             for i in np.arange(self.client_num_in_total)]
         return clients
 
-    def _setup_surrogate(self):
+    def _setup_agents(self):
         """
         Your can use only one model to train. The only thing you need to is update the datasets and parameters for this each client
         Also you can define num_per_round models and use multiprocessing to speed up training if you want.
         """
         # Client need to update the dataset and params
-        surrogate = [Client(user_id=i, train_dataloader=None, test_dataloader=None,
-                            model=self.model, epoch=self.epoch, lr=self.lr, lr_decay=self.lr_decay,
-                            decay_step=self.decay_step, optimizer=self.optimizer,
-                            device=self.device)
-                     for i in range(self.client_num_per_round)]
-        # print(surrogate[0].model)
-        return surrogate
+        agent = [Client(user_id=i, train_dataloader=None, test_dataloader=None,
+                        model=self.model, epoch=self.epoch, lr=self.lr, lr_decay=self.lr_decay,
+                        decay_step=self.decay_step, optimizer=self.optimizer,
+                        device=self.device)
+                 for i in range(self.client_num_per_round)]
+        # print(agent[0].model)
+        return agent
 
     def _aggregate_and_update_global_params(self, updates):
         n = sum([n_k for (params, n_k) in updates])
@@ -136,13 +141,13 @@ class Server:
         # print(selected_clients_index)
         for k in tqdm(range(self.client_num_per_round)):
             # 训练时只把参数发给被选中的客户端
-            surrogate = self.surrogates[k]  # 放到第k个槽位上
-            surrogate.update_local_dataset(self.clients[selected_clients_index[k]])  # update datasets and params
-            surrogate.set_params(self.global_params)
+            agent = self.agents[k]  # 放到第k个槽位上
+            agent.update_local_dataset(self.clients[selected_clients_index[k]])  # update datasets and params
+            agent.set_params(self.global_params)
             # 得到参数，这里的sample_loss其实没什么用，因为我们还没有更新全局模型
             # 本地训练 local client train
             local_params, train_data_num, sample_loss \
-                = surrogate.train(round_th)
+                = agent.train(round_th)
             # print(local_params['fc2.weight'].sum().item())
             updates.append((local_params, train_data_num))
         return updates
@@ -196,15 +201,7 @@ class Server:
         print()
 
     def _eval_model(self, dataset: str = 'test'):
-        """
-        用当前的全局模型评估所有客户端训练集or测试集上的准确率和损失值
-
-        Args:
-            dataset:  'train' or 'test'
-
-        Returns:
-
-        """
+        """用当前的全局模型评估所有客户端训练集or测试集上的准确率和损失值"""
         # print(f"\n====Eval on all {dataset} dataset====")
         acc_list = []
         loss_list = []
@@ -212,12 +209,12 @@ class Server:
         all_predicted = []
 
         for k in tqdm(range(self.client_num_in_total)):
-            surrogate = self.surrogates[k % self.client_num_per_round]  # 放到槽位上去算
-            surrogate.update_local_dataset(self.clients[k])  # update dataset and params
-            surrogate.set_params(self.global_params)
+            agent = self.agents[k % self.client_num_per_round]  # 放到槽位上去算
+            agent.update_local_dataset(self.clients[k])  # update dataset and params
+            agent.set_params(self.global_params)
 
             # 把所有的predicted结果整合起来
-            client_labels, client_predicted, client_num, accuracy, avg_loss = surrogate.test(
+            client_labels, client_predicted, client_num, accuracy, avg_loss = agent.test(
                 dataset=dataset)  # 在本地模型上进行测试
             all_labels += client_labels
             all_predicted += client_predicted
@@ -228,7 +225,7 @@ class Server:
 
     @staticmethod
     def avg_metric(metric_list):
-        # 其实你把所有的结果加到一起再用sklearn去得到accuracy，precisison，recall等指标也是OK的
+        # 其实你把所有的结果加到一起再用sklearn去得到accuracy，precision，recall等指标也是OK的
         total_num = 0
         total_metric = 0
         for (client_num, metric) in metric_list:

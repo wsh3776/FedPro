@@ -18,13 +18,13 @@ def parse_args():
     Returns: args
 
     """
+    config = {
+        "ratio_of_neg_to_pos": 2,
+        "partition_alpha": 0.8,
+        "proportion_of_test_datasets": 0.2,
+    }
+
     parser = argparse.ArgumentParser(description='*******data_loader*******')
-
-    parser.add_argument('--client_num_in_total', type=int, default=200, metavar='NN',
-                        help='number of clients in distributed cluster')
-
-    parser.add_argument('--batch_size', type=int, default=32, metavar='BS',
-                        help='input batch size for training (default: 64)')
 
     parser.add_argument('--ratio_of_neg_to_pos', type=int, default=1, metavar='RPN',
                         help='the ratio of generating negative samples')
@@ -34,6 +34,8 @@ def parse_args():
 
     parser.add_argument('--partition_alpha', type=float, default=0.9, metavar='RPN',
                         help='partition_alpha')
+
+    parser.set_defaults(**config)
 
     args = parser.parse_known_args()[0]
     return args
@@ -116,7 +118,7 @@ class MyDataset(Dataset):
         return len(self.label)
 
 
-def partition_data(partition_method="homo"):
+def partition_data(partition_method="homo", client_num_in_total=None, batch_size=None):
     # TODO: add parse_args
     args = parse_args()
 
@@ -124,17 +126,17 @@ def partition_data(partition_method="homo"):
 
     if partition_method == "homo":
         train_dataloader, test_dataloader = split_data_iid(train_data, test_data, train_label, test_label,
-                                                           num_clients=args.client_num_in_total,
-                                                           batch_size=args.batch_size)
+                                                           num_clients=client_num_in_total,
+                                                           batch_size=batch_size)
     elif partition_method == "hetero":
         # alpha越小,异质程度越高
         train_dataloader, test_dataloader = split_data_non_iid(train_data, test_data, train_label, test_label,
-                                                               num_clients=args.client_num_in_total,
+                                                               num_clients=client_num_in_total,
                                                                alpha=args.partition_alpha,
-                                                               batch_size=args.batch_size)
+                                                               batch_size=batch_size)
     elif partition_method == "centralized":
         train_dataloader, test_dataloader = centralized_data(train_data, test_data, train_label, test_label,
-                                                             batch_size=args.batch_size)
+                                                             batch_size=batch_size)
     return train_dataloader, test_dataloader
 
 

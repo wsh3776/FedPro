@@ -14,52 +14,47 @@ def parse_args():
     除了fedavg_main.py中需要读入参数外，这个模块也要读入参数，可以把参数都写在命令行参数里面，
     parser会自动从sys.argv中去解析匹配到的参数
     """
+    config = {
+        'partition_alpha': 0.27,
+    }
     parser = argparse.ArgumentParser(description='*******data_loader*******')
 
-    parser.add_argument('--client_num_in_total', type=int, default=200, metavar='NN',
-                        help='number of clients in distributed cluster')
-
-    parser.add_argument('--batch_size', type=int, default=32, metavar='BS',
-                        help='input batch size for training (default: 64)')
+    # parser.add_argument('--client_num_in_total', type=int, default=200, metavar='NN',
+    #                     help='number of clients in distributed cluster')
+    #
+    # parser.add_argument('--batch_size', type=int, default=32, metavar='BS',
+    #                     help='input batch size for training (default: 64)')
 
     parser.add_argument('--partition_alpha', type=float, default=0.28, metavar='RPN',
                         help='partition_alpha')
+
+    parser.set_defaults(**config)
 
     args = parser.parse_known_args()[0]
     return args
 
 
-def partition_data(partition_method="hetero"):
+def partition_data(partition_method="hetero", client_num_in_total=None, batch_size=None):
     args = parse_args()
 
     train_data, test_data = get_datasets()
 
     if partition_method == "homo":
-        train_dataloader, test_dataloader = split_data_iid(train_data, test_data, num_clients=args.client_num_in_total,
-                                                           batch_size=args.batch_size)
+        train_dataloader, test_dataloader = split_data_iid(train_data, test_data, num_clients=client_num_in_total,
+                                                           batch_size=batch_size)
     elif partition_method == "hetero":
         # TODO: num_clients和alpha最好作为args参数传入
         # alpha越小,异质程度越高
         train_dataloader, test_dataloader = split_data_non_iid(train_data, test_data,
-                                                               num_clients=args.client_num_in_total,
+                                                               num_clients=client_num_in_total,
                                                                alpha=args.partition_alpha,
-                                                               batch_size=args.batch_size)
+                                                               batch_size=batch_size)
     elif partition_method == "centralized":
-        train_dataloader, test_dataloader = centralized_data(train_data, test_data, batch_size=args.batch_size)
+        train_dataloader, test_dataloader = centralized_data(train_data, test_data, batch_size=batch_size)
     return train_dataloader, test_dataloader
 
 
 def centralized_data(train_data, test_data, batch_size=32):
-    """
-
-    Args:
-        train_data:
-        test_data:
-        batch_size:
-
-    Returns:
-
-    """
     train_dataloader, test_dataloader = [], []
 
     train_loader = torch.utils.data.DataLoader(train_data, batch_size=batch_size, shuffle=True)
@@ -133,8 +128,8 @@ def split_data_non_iid(train_data, test_data, num_clients, alpha, batch_size):
 
 
 # *****************************************************************************************
-"""狄利克雷分布产生non-iid数据集"""
-
+#                         狄利克雷分布产生non-iid数据集
+# *****************************************************************************************
 
 def data_split(data, num_clients, alpha):
     # alpha不能过小，不然有些客户端会只有0个样本
@@ -152,9 +147,7 @@ def data_split(data, num_clients, alpha):
 
 
 def dirichlet_partition(samples, num_clients, alpha):
-    """
-    O(n)
-    """
+    """O(n)"""
     ret = {i: [] for i in range(num_clients)}
     random.shuffle(samples)
     # TODO: what does it mean

@@ -35,10 +35,7 @@ class Client:
         return copy.deepcopy(self.model.cpu().state_dict())
 
     def train(self, round_th):
-        """
-        本地模型训练
-        :return:
-        """
+        """本地模型训练"""
         model = self.model
         model.to(device=self.device)
         model.train()  # 使用Dropout, BatchNorm
@@ -78,20 +75,12 @@ class Client:
         # 这个客户端上一个样本的平均loss
         sample_loss = sum(batch_loss) / len(batch_loss)
 
-        # 返回训练好的参数和该客户端数据个数
-        return self.get_params(), \
-               self.train_dataloader.sampler.num_samples, \
-               sample_loss
+        num_samples = self.train_dataloader.sampler.num_samples
+
+        return self.get_params(), num_samples, sample_loss
 
     def test(self, dataset: str):
-        """
-        在本地模型上进行测试,准确率 + loss
-        Args:
-            dataset: 'train', 'test'
-
-        Returns:
-
-        """
+        """在本地模型上对train和test数据集进行测试,返回准确率 + loss"""
         model = self.model
         model.eval()  # 不使用Dropout, BatchNorm
         model.to(self.device)
