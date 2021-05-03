@@ -38,26 +38,6 @@ class Server:
         self.model = None
         self.global_params = None
 
-    def federate(self):
-        """federated learning"""
-        print("Begin Federating!")
-        print(f"Training among {self.client_num_in_total} clients! \n")
-
-        self.model = self._select_model(self.model_name)
-        # get the initialized global model params
-        self.global_params = copy.deepcopy(self.model.state_dict())
-        self.clients = self._setup_clients()
-        self.agents = self._setup_agents()
-
-        # server-client communication
-        for round_th in range(self.num_rounds):
-            updates = self._train_on_clients(round_th)
-
-            self._aggregate_and_update_global_params(updates)
-
-            if round_th % self.eval_interval == 0:
-                self._eval_global_model(round_th)
-
     @staticmethod
     def _select_model(model_name):
         model = None
@@ -71,6 +51,7 @@ class Server:
     # TODO: load data
     def get_dataloader(self):
         # 多个if-else最好加个注释，可以接收哪几个参数
+        datasets = {'train': None, 'test': None}
         if self.dataset == "dummy":
             train_dataloader, test_dataloader = DummyData()
         elif self.dataset == "mnist":
@@ -81,9 +62,8 @@ class Server:
             train_dataloader, test_dataloader = partition_data_movielens(self.partition_method,
                                                                          self.client_num_in_total,
                                                                          self.batch_size)
-        # 如果想跑集中式，我只要把参数并在一起就行了
-        # if self.centralized==True:
-        return train_dataloader, test_dataloader
+        datasets['train'], datasets['test'] = train_dataloader, test_dataloader
+        return datasets
 
     def _select_clients(self, round_th):
         np.random.seed(seed=self.seed + round_th)
@@ -92,10 +72,10 @@ class Server:
                                                   replace=False)
         return selected_clients_index
 
-    def _setup_clients(self):
+    def _setup_clients(self, datasets=None):
         # setup all clients (actually we just want to store the data into client)
-        train_dataloader, test_dataloader = self.get_dataloader()
         # 这里不需要传递epoch,lr,model_name，因为这些每个客户端是一样的，我只要在agent里设置就行了
+        train_dataloader, test_dataloader = datasets['train'], datasets['test']
         clients = [
             Client(user_id=i,
                    train_dataloader=train_dataloader[i],
@@ -233,3 +213,28 @@ class Server:
             total_metric += metric * client_num
         avg_metric = total_metric / total_num
         return avg_metric
+
+    def federate(self):
+        """federated learning"""
+        print("Begin Federating!")
+        print(f"Training among {self.client_num_in_total} clients! \n")
+
+        self.model = self._select_model(self.model_name)
+
+        # get the initialized global model params
+        self.global_params = copy.deepcopy(self.model.state_dict())
+
+        datasets = self.get_dataloader()
+
+        self.clients = self._setup_clients(datasets)
+
+        self.agents = self._setup_agents()
+
+        # server-client communication
+        for round_th in range(self.num_rounds):
+            updates = self._train_on_clients(round_th)
+
+            self._aggregate_and_update_global_params(updates)
+
+            if round_th % self.eval_interval == 0:
+                self._eval_global_model(round_th)
