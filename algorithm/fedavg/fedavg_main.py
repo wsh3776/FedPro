@@ -19,16 +19,17 @@ def parse_args():
         "client_num_in_total": 200,
         "client_num_per_round": 40,
         "num_rounds": 500,
-        "partition_method": 'homo',
+        "partition_method": 'centralized',
         "client_optimizer": 'adam',
-        "lr": 0.01,
+        "lr": 0.003,
         "batch_size": 32,
         "epoch": 2,
         "eval_interval": 1,
         "seed": 42,
         "device": 'cuda',
-        "lr_decay": 0.998,
+        "lr_decay": 0.996,
         "decay_step": 200,
+        "early_stop": 50,
         "wandb_mode": 'run',
         "notes": 'dev',
     }
@@ -109,11 +110,15 @@ def parse_args():
 
     parser.add_argument('--decay_step', help='sgd: decay step for learning rate', type=int, default=200)
 
+    parser.add_argument('--early_stop', help='stop training if your model stops improving for early_stop rounds',
+                        type=int, default=50)
+
     # use values from config dict by default
     parser.set_defaults(**config)
 
     # override with command line arguments when provided
     args = parser.parse_known_args()[0]
+
     return args
 
 

@@ -32,6 +32,7 @@ class Server:
         self.device = args.device
         self.lr_decay = args.lr_decay
         self.decay_step = args.decay_step
+        self.early_stop = args.early_stop
 
         self.clients: list = None
         self.agents: list = None
@@ -114,7 +115,6 @@ class Server:
 
     def _train_on_clients(self, round_th, updates=[]):
         selected_clients_index = self._select_clients(round_th=round_th)
-        print(selected_clients_index)
         print("-" * 50)
         print(f"Round {round_th}")
         print("train local models:")
@@ -141,7 +141,7 @@ class Server:
         avg_loss_train_all = self.avg_metric(loss_train_list)
 
         # TODO: 这部分算precision二分类和多分类的情况？取平均？
-        if self.dataset == "ctr_movielens":
+        if self.dataset == "f_movielens":
             train_precision = precision_score(all_train_labels, all_train_predicted)
             train_recall = recall_score(all_train_labels, all_train_predicted)
             train_f1 = f1_score(all_train_labels, all_train_predicted)
@@ -160,7 +160,7 @@ class Server:
         avg_acc_test_all = self.avg_metric(acc_test_list)
         avg_loss_test_all = self.avg_metric(loss_test_list)
 
-        if self.dataset == "ctr_movielens":
+        if self.dataset == "f_movielens":
             test_precision = precision_score(all_test_labels, all_test_predicted)
             test_recall = recall_score(all_test_labels, all_test_predicted)
             test_f1 = f1_score(all_test_labels, all_test_predicted)
@@ -177,8 +177,9 @@ class Server:
         print()
         print(f"[TRAIN] Avg acc: {avg_acc_train_all * 100:.3f}%, Avg loss: {avg_loss_train_all:.5f}")
         print(f"[TEST]  Avg acc: {avg_acc_test_all * 100:.3f}%, Avg loss: {avg_loss_test_all:.5f}")
-        # print("-" * 50)
         print()
+
+        return avg_loss_test_all
 
     def _eval_model(self, dataset: str = 'test'):
         """用当前的全局模型评估所有客户端训练集or测试集上的准确率和损失值"""
@@ -201,6 +202,7 @@ class Server:
             acc_list.append((client_num, accuracy))
             loss_list.append((client_num, avg_loss))
 
+        # TODO: 最好以dict的形式返回
         return all_labels, all_predicted, acc_list, loss_list
 
     @staticmethod
@@ -230,6 +232,9 @@ class Server:
 
         self.agents = self._setup_agents()
 
+        min_loss = 1000
+        early_stop_cnt = 0
+
         # server-client communication
         for round_th in range(self.num_rounds):
             updates = self._train_on_clients(round_th)
@@ -237,4 +242,14 @@ class Server:
             self._aggregate_and_update_global_params(updates)
 
             if round_th % self.eval_interval == 0:
-                self._eval_global_model(round_th)
+                test_loss = self._eval_global_model(round_th)
+                # 如果测试集上的平均loss连续多轮不下降的话，我们认为可以stop了
+                if min_loss > test_loss:
+                    min_loss = test_loss
+                    early_stop_cnt = 0
+                else:
+                    early_stop_cnt += self.eval_interval  # 此处认为只要loss上升了，那这一段都是上升的
+
+            if early_stop_cnt >= self.early_stop:
+                # Stop training if your model stops improving for 'early_stop' rounds.
+                break
