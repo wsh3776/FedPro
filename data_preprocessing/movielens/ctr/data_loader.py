@@ -4,6 +4,7 @@ from sklearn.model_selection import train_test_split
 import torch
 from torch.utils.data import Dataset, TensorDataset, DataLoader
 import numpy as np
+import pandas as pd
 from sklearn.utils import shuffle
 import argparse
 import random
@@ -19,9 +20,9 @@ def parse_args():
 
     """
     config = {
-        "ratio_of_neg_to_pos": 2,
-        "partition_alpha": 0.8,
-        "proportion_of_test_datasets": 0.2,
+        "ratio_of_neg_to_pos": 3,
+        "partition_alpha": 0.8,  # 用狄利克雷划分non-iid可能出现客户端数据集为0的情况
+        "proportion_of_test_datasets": 0.1,
     }
 
     parser = argparse.ArgumentParser(description='*******data_loader*******')
@@ -94,6 +95,15 @@ def get_train_test_dataset(args):
     # TODO: 100万条数据我先取前面10000条，这样速度快一点
     X = ratings[features][:200000]
     X = X.values  # pandas -> numpy
+
+    # if args.id_onehot == True:
+    #     X['user_id'] = X['user_id'].apply(str)
+    #     X['movie_id'] = X['movie_id'].apply(str)  # onehot需要是str
+    #     print("Start onehot ...")
+    #     X = pd.get_dummies(X)
+    #     print("End onehot")
+
+
     Y = ratings[labels][:200000]
     Y = Y.values.reshape(len(Y))  # pandas -> numpy
     # array([1, 1, 1, ..., 0, 1, 1])
@@ -174,7 +184,8 @@ def split_data_iid(train_data, test_data, train_label, test_label, num_clients, 
         X_test = torch.as_tensor(X, dtype=torch.float32)
         Y_test = torch.as_tensor(Y, dtype=torch.long)
         test_ids = TensorDataset(X_test, Y_test)
-        test_loader = torch.utils.data.DataLoader(dataset=test_ids, batch_size=batch_size, shuffle=True)
+        # Note: 跨模块的seed不一定起作用
+        test_loader = torch.utils.data.DataLoader(dataset=test_ids, batch_size=batch_size, shuffle=False)
         test_dataloader.append(test_loader)
 
     # b = np.array([[1,2],[3,4],[5,6],[7,8]])

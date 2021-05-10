@@ -13,6 +13,8 @@ from data_preprocessing.mnist.data_loader import partition_data as partition_dat
 from data_preprocessing.movielens.ctr.data_loader import partition_data as partition_data_movielens
 from models.fedavg.mnist.cnn import CNN
 from models.fedavg.movielens.mlp import MLP
+from models.fedavg.movielens.fm import FM
+from models.fedavg.movielens.lr import LR
 
 
 class Server:
@@ -46,7 +48,12 @@ class Server:
             model = CNN()
         elif model_name == 'mlp':
             # user_id, movie_id进行embedding的网络模型
-            model = MLP(output_dim=2)
+            model = MLP()
+        elif model_name == 'fm':
+            model = FM(n=4, k=10)
+        elif model_name == 'lr':
+            # 针对ctr数据集的lr
+            model = LR()
         return model
 
     # TODO: load data
@@ -141,7 +148,7 @@ class Server:
         avg_loss_train_all = self.avg_metric(loss_train_list)
 
         # TODO: 这部分算precision二分类和多分类的情况？取平均？
-        if self.dataset == "f_movielens":
+        if self.dataset == "movielens":
             train_precision = precision_score(all_train_labels, all_train_predicted)
             train_recall = recall_score(all_train_labels, all_train_predicted)
             train_f1 = f1_score(all_train_labels, all_train_predicted)
@@ -160,7 +167,11 @@ class Server:
         avg_acc_test_all = self.avg_metric(acc_test_list)
         avg_loss_test_all = self.avg_metric(loss_test_list)
 
-        if self.dataset == "f_movielens":
+        # 提示
+        print(all_test_labels[:50])
+        print(all_test_predicted[:50])
+
+        if self.dataset == "movielens":
             test_precision = precision_score(all_test_labels, all_test_predicted)
             test_recall = recall_score(all_test_labels, all_test_predicted)
             test_f1 = f1_score(all_test_labels, all_test_predicted)
@@ -191,12 +202,14 @@ class Server:
 
         for k in tqdm(range(self.client_num_in_total)):
             agent = self.agents[k % self.client_num_per_round]  # 放到槽位上去算
+            # agent = self.agents[0]  # 放到槽位上去算
             agent.update_local_dataset(self.clients[k])  # update dataset and params
             agent.set_params(self.global_params)
 
             # 把所有的predicted结果整合起来
             client_labels, client_predicted, client_num, accuracy, avg_loss = agent.test(
                 dataset=dataset)  # 在本地模型上进行测试
+
             all_labels += client_labels
             all_predicted += client_predicted
             acc_list.append((client_num, accuracy))

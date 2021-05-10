@@ -122,7 +122,7 @@ def get_negative_samples_per_user(users=None, movies=None, ratings=None, ratio_o
         else:
             occurrence_matrix_dic[user_id] += [movie_id]
 
-    for user_id in tqdm(range(1, len(users) + 1), desc="Generate negative items"):
+    for user_id in tqdm(range(1, len(users) + 1), desc=f"Generate negative items (1:{ratio_of_neg_to_pos})"):
         positive_items = set(occurrence_matrix_dic[user_id])
         num_positive_items = len(positive_items)
 

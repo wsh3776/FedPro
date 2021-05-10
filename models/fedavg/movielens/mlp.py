@@ -9,7 +9,7 @@ class MLP(nn.Module):
     user共6040个，movie共3883个
     """
 
-    def __init__(self, output_dim):
+    def __init__(self):
         super(MLP, self).__init__()
 
         self.user_id_embed = nn.Embedding(6040, 128)
@@ -18,18 +18,29 @@ class MLP(nn.Module):
         self.dropout = nn.Dropout(0.3)
 
         self.fc1 = nn.Linear(128 * 2, 128)
-        # self.fc2 = nn.Linear(1024, 512)
-        # self.fc3 = nn.Linear(512, 128)
-        self.fc4 = nn.Linear(128, 2)
+        self.fc2 = nn.Linear(128, 64)
+        self.fc3 = nn.Linear(64, 1)
+
+        self.sig = nn.Sigmoid()
+        # https://zhuanlan.zhihu.com/p/59800597
+        self.criterion = nn.BCELoss(reduction="mean")
 
     def forward(self, x):
         # x = x.float()
         user_embed = self.user_id_embed(x[:, 0].long())  # 必须是long类型
         movie_embed = self.movie_id_embed(x[:, 1].long())
         x = torch.cat((user_embed, movie_embed), axis=-1)
+
         x = F.relu(self.fc1(x))
-        # x = self.dropout(x)
-        # x = F.relu(self.fc3(x))
         x = self.dropout(x)
-        logits = self.fc4(x)
-        return logits
+        x = F.relu(self.fc2(x))
+        x = self.dropout(x)
+        logit = self.fc3(x)
+        # logit: [batch_size, 1]
+        output = self.sig(logit)
+        return torch.cat((1 - output, output), dim=-1)
+
+    def cal_loss(self, pred, target):
+        """Calculate loss"""
+        # 这里的pred指sigmoid后的值,即 1/(1+exp(-z))
+        return self.criterion(pred[:, 1].squeeze(dim=-1), target.float())

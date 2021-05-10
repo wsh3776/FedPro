@@ -14,24 +14,24 @@ from algorithm.fedavg.server import Server
 def parse_args():
     # args default values
     config = {
-        "model": 'mlp',
+        "model": 'lr',  # lr需要设置onehot
         "dataset": 'movielens',
         "client_num_in_total": 200,
         "client_num_per_round": 40,
         "num_rounds": 500,
-        "partition_method": 'centralized',
-        "client_optimizer": 'adam',
-        "lr": 0.003,
-        "batch_size": 32,
+        "partition_method": 'homo',
+        "client_optimizer": "adam",
+        "lr": 0.0001,
+        "batch_size": 64,
         "epoch": 2,
-        "eval_interval": 1,
+        "eval_interval": 2,
         "seed": 42,
         "device": 'cuda',
         "lr_decay": 0.996,
-        "decay_step": 200,
+        "decay_step": 20,
         "early_stop": 50,
         "wandb_mode": 'run',
-        "notes": 'dev',
+        "notes": 'final',
     }
 
     config_mnist = {
@@ -57,7 +57,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description='*******FedAvg Experiments Params*******')
 
     parser.add_argument('--model', type=str, default='cnn', metavar='N',
-                        choices=['cnn', 'mlp'],
+                        choices=['cnn', 'mlp', 'fm', 'lr'],
                         help='model used for training')
 
     parser.add_argument('--dataset', type=str, default='mnist', metavar='D',
@@ -123,11 +123,11 @@ def parse_args():
 
 
 def setup_seed(seed):
-    random.seed(seed)                          # 为python设置随机种子
-    np.random.seed(seed)                       # 为numpy设置随机种子
-    torch.manual_seed(seed)                    # 为CPU设置随机种子
-    torch.cuda.manual_seed(seed)               # 为单个GPU设置随机种子
-    torch.cuda.manual_seed_all(seed)           # 为所有GPU设置随机种子
+    random.seed(seed)  # 为python设置随机种子
+    np.random.seed(seed)  # 为numpy设置随机种子
+    torch.manual_seed(seed)  # 为CPU设置随机种子
+    torch.cuda.manual_seed(seed)  # 为单个GPU设置随机种子
+    torch.cuda.manual_seed_all(seed)  # 为所有GPU设置随机种子
     torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.deterministic = True  # 消除cudnn卷积操作优化的精度损失
 

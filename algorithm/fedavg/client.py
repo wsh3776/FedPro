@@ -40,12 +40,15 @@ class Client:
         model.to(device=self.device)
         model.train()  # 使用Dropout, BatchNorm
 
-        criterion = nn.CrossEntropyLoss(reduction='mean').to(self.device)
+        # 把criterion放到model内比较好
+        # criterion = nn.CrossEntropyLoss(reduction='mean').to(self.device)
+
         if self.optimizer == "sgd":
             optimizer = optim.SGD(model.parameters(),
                                   lr=self.lr * self.lr_decay ** (round_th / self.decay_step),
                                   momentum=0.9,
                                   weight_decay=3e-4)
+            # optimizer.param_groups[0]["lr"]查看学习率大小
             # sgd要写学习率衰减，但是adam中不用
             # weight_decay就是正则化里的lambda
             # 权重衰减（L2正则化）的作用
@@ -59,7 +62,7 @@ class Client:
                 labels = labels.to(self.device)
                 optimizer.zero_grad()
                 outputs = model(inputs)
-                loss = criterion(outputs, labels)  # loss是对每个样本的loss做了平均
+                loss = model.cal_loss(outputs, labels)  # model内包含特定loss，如交叉熵，RMSE等
                 batch_loss.append(loss)
                 loss.backward()
                 optimizer.step()
@@ -68,9 +71,6 @@ class Client:
 
                 # # https://docs.wandb.ai/library#logged-with-specific-calls
                 # wandb.watch(model)
-
-                # if i % 300 == 0:
-                #     print(f"this is {i}th batch loss: {loss.item():.6f}")
 
         # 这个客户端上一个样本的平均loss
         sample_loss = sum(batch_loss) / len(batch_loss)
@@ -94,7 +94,7 @@ class Client:
             print("\nPlease input right dataset!!!")
             exit()
 
-        criterion = torch.nn.CrossEntropyLoss(reduction='mean').to(self.device)
+        # criterion = torch.nn.CrossEntropyLoss(reduction='mean').to(self.device)
 
         num_correct = 0
         client_num = 0
@@ -108,9 +108,9 @@ class Client:
                 images, labels = data
                 images = images.to(self.device)
                 labels = labels.to(self.device)
-                outputs = model(images)
-                loss = criterion(outputs, labels)
-                _, predicted = torch.max(outputs.data, 1)
+                output = model(images)
+                loss = model.cal_loss(output, labels)
+                _, predicted = torch.max(output.data, 1)
                 client_num += labels.size(0)
                 # print(labels) # tensor([6, 6, 1, 6])
                 # print(predicted) # tensor([4, 6, 5, 4])
