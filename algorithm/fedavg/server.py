@@ -3,6 +3,7 @@ import copy
 import numpy as np
 from algorithm.fedavg.client import Client
 from tqdm import tqdm
+from sklearn.metrics import accuracy_score
 from sklearn.metrics import precision_score
 from sklearn.metrics import recall_score
 from sklearn.metrics import f1_score
@@ -15,6 +16,7 @@ from models.fedavg.mnist.cnn import CNN
 from models.fedavg.movielens.mlp import MLP
 from models.fedavg.movielens.fm import FM
 from models.fedavg.movielens.lr import LR
+from models.fedavg.movielens.widedeep import WideDeep
 
 
 class Server:
@@ -49,6 +51,8 @@ class Server:
         elif model_name == 'mlp':
             # user_id, movie_id进行embedding的网络模型
             model = MLP()
+        elif model_name == 'widedeep':
+            model = WideDeep()
         elif model_name == 'fm':
             model = FM(n=4, k=10)
         elif model_name == 'lr':
@@ -168,8 +172,8 @@ class Server:
         avg_loss_test_all = self.avg_metric(loss_test_list)
 
         # 提示
-        print(all_test_labels[:50])
-        print(all_test_predicted[:50])
+        print("first 50 Ground Truth: ", all_test_labels[:50])
+        print("first 50 Prediction:   ", all_test_predicted[:50])
 
         if self.dataset == "movielens":
             test_precision = precision_score(all_test_labels, all_test_predicted)

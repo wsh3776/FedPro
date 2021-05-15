@@ -14,14 +14,14 @@ from algorithm.fedavg.server import Server
 def parse_args():
     # args default values
     config = {
-        "model": 'lr',  # lr需要设置onehot
+        "model": 'lr',
         "dataset": 'movielens',
         "client_num_in_total": 200,
         "client_num_per_round": 40,
         "num_rounds": 500,
         "partition_method": 'homo',
         "client_optimizer": "adam",
-        "lr": 0.0001,
+        "lr": 0.003,
         "batch_size": 64,
         "epoch": 2,
         "eval_interval": 2,
@@ -31,7 +31,7 @@ def parse_args():
         "decay_step": 20,
         "early_stop": 50,
         "wandb_mode": 'run',
-        "notes": 'final',
+        "notes": 'neg2pos_1_test',
     }
 
     config_mnist = {
@@ -40,7 +40,7 @@ def parse_args():
         "client_num_in_total": 200,
         "client_num_per_round": 20,
         "num_rounds": 500,
-        "partition_method": 'hetero',
+        "partition_method": 'homo',
         "client_optimizer": 'sgd',
         "lr": 0.003,
         "batch_size": 32,
@@ -57,7 +57,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description='*******FedAvg Experiments Params*******')
 
     parser.add_argument('--model', type=str, default='cnn', metavar='N',
-                        choices=['cnn', 'mlp', 'fm', 'lr'],
+                        choices=['cnn', 'mlp', 'fm', 'lr', 'widedeep'],
                         help='model used for training')
 
     parser.add_argument('--dataset', type=str, default='mnist', metavar='D',
@@ -144,9 +144,12 @@ if __name__ == '__main__':
     # Reproduction : select clients per round, dataloader shuffle, model parameter init...
     setup_seed(args.seed)
 
-    wandb.init(project="FedPro",
-               name=str(args.dataset) + "_" + str(args.partition_method) + "_" + str(args.notes),
-               tags=['GPU', 'working'],
+    wandb.init(project="HYPERS_CTR",
+               name=str(args.partition_method)[:2].upper() + "-" + str(args.model)
+                    + "-e_" + str(args.epoch)
+                    + "-b_" + str(args.batch_size) + "-lr_" + str(args.lr) + "-"
+                    + str(args.notes),
+               tags=['CTR'],
                notes=args.notes,
                mode=args.wandb_mode,
                config=args)

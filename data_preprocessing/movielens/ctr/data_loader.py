@@ -20,7 +20,7 @@ def parse_args():
 
     """
     config = {
-        "ratio_of_neg_to_pos": 3,
+        "ratio_of_neg_to_pos": 1,
         "partition_alpha": 0.8,  # 用狄利克雷划分non-iid可能出现客户端数据集为0的情况
         "proportion_of_test_datasets": 0.1,
     }
@@ -237,7 +237,7 @@ def centralized_data(train_data, test_data, train_label, test_label, batch_size)
     X_test = torch.as_tensor(test_data.astype(float), dtype=torch.float32)
     Y_test = torch.as_tensor(test_label, dtype=torch.long)
     test_ids = TensorDataset(X_test, Y_test)
-    test_loader = DataLoader(dataset=test_ids, batch_size=batch_size, shuffle=True)  # shuffle打乱TensorDataset
+    test_loader = DataLoader(dataset=test_ids, batch_size=batch_size, shuffle=False)  # shuffle打乱TensorDataset
     test_dataloader.append(test_loader)
 
     return train_dataloader, test_dataloader

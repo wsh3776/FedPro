@@ -28,24 +28,18 @@ class LR(nn.Module):
 
     def forward(self, x):
         device = x.device.type
-        data_list = []
-        t = 0
         batch_data = None
         for id in x.cpu().numpy():
-            us = torch.zeros(6040)
-            us[int(id[0])] = 1
-            mv = torch.zeros(3883)
-            mv[int(id[1])] = 1
-
+            us, mv = torch.zeros(6040), torch.zeros(3883)
+            us[int(id[0])], mv[int(id[1])] = 1, 1
             data = torch.cat((us, mv), axis=-1).unsqueeze(dim=0)
-            if t == 0:
+
+            if batch_data is None:
                 batch_data = data
-                t = 1
             else:
                 batch_data = torch.cat((batch_data, data), axis=0)
 
         x = batch_data.to(device)
-
         # x = x.float()
         # user_embed = self.user_id_embed(x[:, 0].long())  # 必须是long类型
         # movie_embed = self.movie_id_embed(x[:, 1].long())
