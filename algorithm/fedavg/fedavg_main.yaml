@@ -1,0 +1,77 @@
+program: fedavg_main.py
+project: wb_sweep
+method: bayes
+metric:
+  goal: minimize
+  name: test/loss
+parameters:
+  batch_size:
+    distribution: int_uniform
+    max: 128
+    min: 32
+  client_num_in_total:
+    distribution: constant
+    value: 200
+  client_num_per_round:
+    distribution: constant
+    value: 40
+  client_optimizer:
+    distribution: categorical
+    values:
+    - adam
+  dataset:
+    distribution: categorical
+    values:
+    - movielens
+  decay_step:
+    distribution: int_uniform
+    max: 40
+    min: 10
+  device:
+    distribution: categorical
+    values:
+    - cuda
+  early_stop:
+    distribution: int_uniform
+    max: 100
+    min: 25
+  epoch:
+    distribution: int_uniform
+    max: 4
+    min: 1
+  eval_interval:
+    distribution: int_uniform
+    max: 4
+    min: 1
+  lr:
+    distribution: uniform
+    max: 0.006
+    min: 0.0015
+  lr_decay:
+    distribution: uniform
+    max: 1.992
+    min: 0.498
+  model:
+    distribution: categorical
+    values:
+    - mlp
+  notes:
+    distribution: categorical
+    values:
+    - neg2pos_1_test
+  num_rounds:
+    distribution: int_uniform
+    max: 1000
+    min: 250
+  partition_method:
+    distribution: categorical
+    values:
+    - homo
+  seed:
+    distribution: int_uniform
+    max: 84
+    min: 21
+  wandb_mode:
+    distribution: categorical
+    values:
+    - run
