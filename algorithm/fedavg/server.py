@@ -148,13 +148,6 @@ class Server:
         """
         评估当前的全局模型在所有客户端训练集或测试集上性能
         """
-        metrics = {
-            'loss': 0,
-            'total_sample_nums': 0,
-            'labels_list': [],  # 所有客户端数据：[1,0,0,1...1,0,1,1]
-            'predicted_list': [],
-            'prob_list': [],
-        }
         metrics = Metrics()
 
         total_loss_per_client_list = []
