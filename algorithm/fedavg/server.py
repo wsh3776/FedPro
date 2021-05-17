@@ -186,7 +186,7 @@ class Server:
             precision = precision_score(labels_list, predicted_list)
             recall = recall_score(labels_list, predicted_list)
             f1 = f1_score(labels_list, predicted_list)
-            auc = roc_auc_score(labels_list, predicted_list) # TODO
+            auc = roc_auc_score(labels_list, prob_list)
 
             wandb.log({f"{info.title()}/precision": precision, "round": round_th})
             wandb.log({f"{info.title()}/recall": recall, "round": round_th})
@@ -195,7 +195,7 @@ class Server:
 
         accuracy = accuracy_score(labels_list, predicted_list)
 
-        wandb.log({f"{info.title()}/auc": accuracy, "round": round_th})
+        wandb.log({f"{info.title()}/accuracy": accuracy, "round": round_th})
         wandb.log({f"{info.title()}/loss": loss, "round": round_th})
 
         print(f"[{info.upper()}] Avg acc: {accuracy * 100:.3f}%, loss: {loss:.5f}")

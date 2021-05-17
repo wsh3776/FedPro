@@ -119,6 +119,7 @@ class Client:
 
                 client_metrics['labels_list'] += (list(labels.cpu().numpy()))
                 client_metrics['predicted_list'] += (list(predicted.cpu().numpy()))
+                client_metrics['prob_list'] += list(output[:, 1].cpu().numpy())
 
         client_metrics['client_num'] = sum(sample_nums_per_batch_list)
         client_metrics['client_loss'] = sum(total_loss_per_batch_list) / sum(sample_nums_per_batch_list)

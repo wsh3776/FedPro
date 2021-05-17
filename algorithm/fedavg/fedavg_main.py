@@ -14,12 +14,12 @@ from algorithm.fedavg.server import Server
 def parse_args():
     # args default values
     config = {
-        "model": 'mlp',
+        "model": 'lr',
         "dataset": 'movielens',
         "client_num_in_total": 200,
         "client_num_per_round": 40,
         "num_rounds": 500,
-        "partition_method": 'centralized',
+        "partition_method": 'homo',
         "client_optimizer": "adam",
         "lr": 0.003,
         "batch_size": 64,
