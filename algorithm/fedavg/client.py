@@ -4,6 +4,7 @@ import torch.nn as nn
 from tqdm import tqdm
 import copy
 import wandb
+from base import Metrics
 
 
 class Client:
@@ -94,13 +95,7 @@ class Client:
             print("\nPlease input right dataset!!!")
             exit()
 
-        client_metrics = {
-            'client_loss': 0,
-            'client_num': 0,
-            'labels_list': [],  # 此客户端数据：[1,0,0..1]
-            'predicted_list': [],
-            'prob_list': [],
-        }
+        client_metrics = Metrics()
 
         sample_nums_per_batch_list = []
         total_loss_per_batch_list = []
@@ -117,10 +112,10 @@ class Client:
                 sample_nums_per_batch_list.append(labels.size(0))
                 total_loss_per_batch_list.append(loss * labels.size(0))
 
-                client_metrics['labels_list'] += (list(labels.cpu().numpy()))
-                client_metrics['predicted_list'] += (list(predicted.cpu().numpy()))
-                client_metrics['prob_list'] += list(output[:, 1].cpu().numpy())
+                client_metrics.labels_list += (list(labels.cpu().numpy()))
+                client_metrics.predicted_list += (list(predicted.cpu().numpy()))
+                client_metrics.prob_list += list(output[:, 1].cpu().numpy())
 
-        client_metrics['client_num'] = sum(sample_nums_per_batch_list)
-        client_metrics['client_loss'] = sum(total_loss_per_batch_list) / sum(sample_nums_per_batch_list)
+        client_metrics.num = sum(sample_nums_per_batch_list)
+        client_metrics.loss = sum(total_loss_per_batch_list) / sum(sample_nums_per_batch_list)
         return client_metrics

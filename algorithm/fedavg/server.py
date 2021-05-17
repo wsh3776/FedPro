@@ -2,6 +2,8 @@ import wandb
 import copy
 import numpy as np
 from algorithm.fedavg.client import Client
+from base import Metrics
+
 from tqdm import tqdm
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import precision_score
@@ -153,6 +155,7 @@ class Server:
             'predicted_list': [],
             'prob_list': [],
         }
+        metrics = Metrics()
 
         total_loss_per_client_list = []
         sample_nums_per_client_list = []
@@ -164,26 +167,27 @@ class Server:
 
             client_metrics = agent.test(dataset=dataset)
 
-            metrics['labels_list'] += client_metrics['labels_list']
-            metrics['predicted_list'] += client_metrics['predicted_list']
-            metrics['prob_list'] += client_metrics['prob_list']
+            metrics.labels_list += client_metrics.labels_list
+            metrics.predicted_list += client_metrics.predicted_list
+            metrics.prob_list += client_metrics.prob_list
 
-            total_loss_per_client_list.append(client_metrics['client_loss'] * client_metrics['client_num'])
-            sample_nums_per_client_list.append(client_metrics['client_num'])
+            total_loss_per_client_list.append(client_metrics.loss * client_metrics.num)
+            sample_nums_per_client_list.append(client_metrics.num)
 
-        metrics['total_sample_nums'] = sum(sample_nums_per_client_list)
-        metrics['loss'] = sum(total_loss_per_client_list) / sum(sample_nums_per_client_list)
+        metrics.nums = sum(sample_nums_per_client_list)
+        metrics.loss = sum(total_loss_per_client_list) / sum(sample_nums_per_client_list)
 
         return metrics
 
-    def visualize(self, metrics: dict = None, info='test', round_th=1):
-        labels_list = metrics['labels_list']
-        predicted_list = metrics['predicted_list']
-        prob_list = metrics['prob_list']
-        loss = metrics['loss']
+    def visualize(self, metrics=None, info='test', round_th=1):
+        labels_list = metrics.labels_list
+        predicted_list = metrics.predicted_list
+        prob_list = metrics.prob_list
+        loss = metrics.loss
 
         if self.dataset == "movielens":
-            precision = precision_score(labels_list, predicted_list)
+            # binary classification
+            precision = precision_score(labels_list, predicted_list, average='binary')
             recall = recall_score(labels_list, predicted_list)
             f1 = f1_score(labels_list, predicted_list)
             auc = roc_auc_score(labels_list, prob_list)
@@ -254,7 +258,7 @@ class Server:
                 self.visualize(metrics=train_set_metrics, info='train', round_th=round_th)
                 self.visualize(metrics=test_set_metrics, info='test', round_th=round_th)
 
-                test_loss = test_set_metrics['loss']
+                test_loss = test_set_metrics.loss
                 if min_loss > test_loss:
                     min_loss = test_loss
                     early_stop_cnt = 0
@@ -264,3 +268,6 @@ class Server:
             # Stop training if your model stops improving for 'early_stop' rounds.
             if early_stop_cnt >= self.early_stop:
                 break
+
+
+
