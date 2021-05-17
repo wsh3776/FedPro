@@ -82,7 +82,7 @@ class Client:
     def test(self, dataset: str):
         """在本地模型上对train和test数据集进行测试,返回准确率 + loss"""
         model = self.model
-        model.eval()  # 不使用Dropout, BatchNorm
+        model.eval()  # 关闭Dropout, 使用测试模式的BatchNorm
         model.to(self.device)
 
         # 测试的时候就不需要epoch了，只要算准确率和loss就行了
@@ -94,14 +94,16 @@ class Client:
             print("\nPlease input right dataset!!!")
             exit()
 
-        # criterion = torch.nn.CrossEntropyLoss(reduction='mean').to(self.device)
+        client_metrics = {
+            'client_loss': 0,
+            'client_num': 0,
+            'labels_list': [],  # 此客户端数据：[1,0,0..1]
+            'predicted_list': [],
+            'prob_list': [],
+        }
 
-        num_correct = 0
-        client_num = 0
-        batch_loss = []
-
-        client_predicted = []
-        client_labels = []
+        sample_nums_per_batch_list = []
+        total_loss_per_batch_list = []
 
         with torch.no_grad():
             for data in dataloader:
@@ -109,20 +111,15 @@ class Client:
                 images = images.to(self.device)
                 labels = labels.to(self.device)
                 output = model(images)
-                loss = model.cal_loss(output, labels)
+                loss = model.cal_loss(output, labels)  # average loss per sample for this batch
                 _, predicted = torch.max(output.data, 1)
-                client_num += labels.size(0)
-                # print(labels) # tensor([6, 6, 1, 6])
-                # print(predicted) # tensor([4, 6, 5, 4])
-                # print((predicted == labels).sum()) # tensor(1)
-                batch_loss.append(loss)
-                num_correct += (predicted == labels).sum().item()
-                # 为了计算全局的precision，auc等指标
-                client_predicted += (list(predicted.cpu().numpy()))
-                client_labels += (list(labels.cpu().numpy()))
 
-        # TODO: 这里我这样测的前提是，我每个客户端的模型是一样的，然后我只要把每个客户端预测的结果加到一个列表里，然后算综合的评价指标即可
-        # 这样我就不用每个客户端上乘以权重去算法了
-        return client_labels, client_predicted, client_num, num_correct / client_num, sum(batch_loss) / len(batch_loss)
-        # print('Accuracy of the network on the 10000 test images: %d %%' % (
-        #         100 * correct / total))
+                sample_nums_per_batch_list.append(labels.size(0))
+                total_loss_per_batch_list.append(loss * labels.size(0))
+
+                client_metrics['labels_list'] += (list(labels.cpu().numpy()))
+                client_metrics['predicted_list'] += (list(predicted.cpu().numpy()))
+
+        client_metrics['client_num'] = sum(sample_nums_per_batch_list)
+        client_metrics['client_loss'] = sum(total_loss_per_batch_list) / sum(sample_nums_per_batch_list)
+        return client_metrics

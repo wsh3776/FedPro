@@ -135,92 +135,76 @@ class Server:
             agent = self.agents[k]  # 放到第k个槽位上
             agent.update_local_dataset(self.clients[selected_clients_index[k]])  # update datasets and params
             agent.set_params(self.global_params)
-            # 得到参数，这里的sample_loss其实没什么用，因为我们还没有更新全局模型
-            # 本地训练 local client train
+            # 本地训练 local client training
             local_params, train_data_num, sample_loss \
                 = agent.train(round_th)
             # print(local_params['fc2.weight'].sum().item())
             updates.append((local_params, train_data_num))
         return updates
 
-    def _eval_global_model(self, round_th):
-        print("evaluate global model:")
+    def _eval_global_model(self, dataset: str = 'test'):
+        """
+        评估当前的全局模型在所有客户端训练集或测试集上性能
+        """
+        metrics = {
+            'loss': 0,
+            'total_sample_nums': 0,
+            'labels_list': [],  # 所有客户端数据：[1,0,0,1...1,0,1,1]
+            'predicted_list': [],
+            'prob_list': [],
+        }
 
-        # eval on train data
-        all_train_labels, all_train_predicted, acc_train_list, loss_train_list = self._eval_model(dataset='train')
-        avg_acc_train_all = self.avg_metric(acc_train_list)
-        avg_loss_train_all = self.avg_metric(loss_train_list)
-
-        # TODO: 这部分算precision二分类和多分类的情况？取平均？
-        if self.dataset == "movielens":
-            train_precision = precision_score(all_train_labels, all_train_predicted)
-            train_recall = recall_score(all_train_labels, all_train_predicted)
-            train_f1 = f1_score(all_train_labels, all_train_predicted)
-            train_auc = roc_auc_score(all_train_labels, all_train_predicted)
-
-            wandb.log({"Train/precision": train_precision, "round": round_th})
-            wandb.log({"Train/recall": train_recall, "round": round_th})
-            wandb.log({"Train/f1": train_f1, "round": round_th})
-            wandb.log({"Train/auc": train_auc, "round": round_th})
-
-        wandb.log({"Train/acc": avg_acc_train_all, "round": round_th})
-        wandb.log({"Train/loss": avg_loss_train_all, "round": round_th})
-
-        # eval on test data
-        all_test_labels, all_test_predicted, acc_test_list, loss_test_list = self._eval_model(dataset='test')
-        avg_acc_test_all = self.avg_metric(acc_test_list)
-        avg_loss_test_all = self.avg_metric(loss_test_list)
-
-        # 提示
-        print("first 50 Ground Truth: ", all_test_labels[:50])
-        print("first 50 Prediction:   ", all_test_predicted[:50])
-
-        if self.dataset == "movielens":
-            test_precision = precision_score(all_test_labels, all_test_predicted)
-            test_recall = recall_score(all_test_labels, all_test_predicted)
-            test_f1 = f1_score(all_test_labels, all_test_predicted)
-            test_auc = roc_auc_score(all_test_labels, all_test_predicted)
-
-            wandb.log({"test/precision": test_precision, "round": round_th})
-            wandb.log({"test/recall": test_recall, "round": round_th})
-            wandb.log({"test/f1": test_f1, "round": round_th})
-            wandb.log({"test/auc": test_auc, "round": round_th})
-
-        wandb.log({"test/acc": avg_acc_test_all, "round": round_th})
-        wandb.log({"test/loss": avg_loss_test_all, "round": round_th})
-
-        print()
-        print(f"[TRAIN] Avg acc: {avg_acc_train_all * 100:.3f}%, Avg loss: {avg_loss_train_all:.5f}")
-        print(f"[TEST]  Avg acc: {avg_acc_test_all * 100:.3f}%, Avg loss: {avg_loss_test_all:.5f}")
-        print()
-
-        return avg_loss_test_all
-
-    def _eval_model(self, dataset: str = 'test'):
-        """用当前的全局模型评估所有客户端训练集or测试集上的准确率和损失值"""
-        # print(f"\n====Eval on all {dataset} dataset====")
-        acc_list = []
-        loss_list = []
-        all_labels = []
-        all_predicted = []
+        total_loss_per_client_list = []
+        sample_nums_per_client_list = []
 
         for k in tqdm(range(self.client_num_in_total)):
             agent = self.agents[k % self.client_num_per_round]  # 放到槽位上去算
-            # agent = self.agents[0]  # 放到槽位上去算
             agent.update_local_dataset(self.clients[k])  # update dataset and params
             agent.set_params(self.global_params)
 
-            # 把所有的predicted结果整合起来
-            client_labels, client_predicted, client_num, accuracy, avg_loss = agent.test(
-                dataset=dataset)  # 在本地模型上进行测试
+            client_metrics = agent.test(dataset=dataset)
 
-            all_labels += client_labels
-            all_predicted += client_predicted
-            acc_list.append((client_num, accuracy))
-            loss_list.append((client_num, avg_loss))
+            metrics['labels_list'] += client_metrics['labels_list']
+            metrics['predicted_list'] += client_metrics['predicted_list']
+            metrics['prob_list'] += client_metrics['prob_list']
 
-        # TODO: 最好以dict的形式返回
-        return all_labels, all_predicted, acc_list, loss_list
+            total_loss_per_client_list.append(client_metrics['client_loss'] * client_metrics['client_num'])
+            sample_nums_per_client_list.append(client_metrics['client_num'])
+
+        metrics['total_sample_nums'] = sum(sample_nums_per_client_list)
+        metrics['loss'] = sum(total_loss_per_client_list) / sum(sample_nums_per_client_list)
+
+        return metrics
+
+    def visualize(self, metrics: dict = None, info='test', round_th=1):
+        labels_list = metrics['labels_list']
+        predicted_list = metrics['predicted_list']
+        prob_list = metrics['prob_list']
+        loss = metrics['loss']
+
+        if self.dataset == "movielens":
+            precision = precision_score(labels_list, predicted_list)
+            recall = recall_score(labels_list, predicted_list)
+            f1 = f1_score(labels_list, predicted_list)
+            auc = roc_auc_score(labels_list, predicted_list) # TODO
+
+            wandb.log({f"{info.title()}/precision": precision, "round": round_th})
+            wandb.log({f"{info.title()}/recall": recall, "round": round_th})
+            wandb.log({f"{info.title()}/f1": f1, "round": round_th})
+            wandb.log({f"{info.title()}/auc": auc, "round": round_th})
+
+        accuracy = accuracy_score(labels_list, predicted_list)
+
+        wandb.log({f"{info.title()}/auc": accuracy, "round": round_th})
+        wandb.log({f"{info.title()}/loss": loss, "round": round_th})
+
+        print(f"[{info.upper()}] Avg acc: {accuracy * 100:.3f}%, loss: {loss:.5f}")
+
+        if info == 'test':
+            print("first 30 Ground Truth: ", labels_list[:30])
+            print("first 30 Prediction:   ", predicted_list[:30])
+
+        return self
 
     @staticmethod
     def avg_metric(metric_list):
@@ -234,7 +218,9 @@ class Server:
         return avg_metric
 
     def federate(self):
-        """federated learning"""
+        """
+        FedAvg Core Function
+        """
         print("Begin Federating!")
         print(f"Training among {self.client_num_in_total} clients! \n")
 
@@ -252,21 +238,29 @@ class Server:
         min_loss = 1000
         early_stop_cnt = 0
 
-        # server-client communication
+        # Server-Client communication
         for round_th in range(self.num_rounds):
+            # (1)
             updates = self._train_on_clients(round_th)
-
+            # (2)
             self._aggregate_and_update_global_params(updates)
-
             if round_th % self.eval_interval == 0:
-                test_loss = self._eval_global_model(round_th)
-                # 如果测试集上的平均loss连续多轮不下降的话，我们认为可以stop了
+                # (3)
+                print("evaluate global model:")
+                train_set_metrics = self._eval_global_model(dataset='train')
+                test_set_metrics = self._eval_global_model(dataset='test')
+
+                # (4)
+                self.visualize(metrics=train_set_metrics, info='train', round_th=round_th)
+                self.visualize(metrics=test_set_metrics, info='test', round_th=round_th)
+
+                test_loss = test_set_metrics['loss']
                 if min_loss > test_loss:
                     min_loss = test_loss
                     early_stop_cnt = 0
                 else:
-                    early_stop_cnt += self.eval_interval  # 此处认为只要loss上升了，那这一段都是上升的
+                    early_stop_cnt += self.eval_interval
 
+            # Stop training if your model stops improving for 'early_stop' rounds.
             if early_stop_cnt >= self.early_stop:
-                # Stop training if your model stops improving for 'early_stop' rounds.
                 break
