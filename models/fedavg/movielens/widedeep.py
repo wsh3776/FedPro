@@ -14,11 +14,13 @@ class WideDeep(nn.Module):
 
         self.deep_dnn = nn.Sequential(
             nn.Linear(128 * 2, 128),
+            nn.BatchNorm1d(128),
+            # nn.Dropout(0.3),
             nn.ReLU(),
-            nn.Dropout(0.3),
             nn.Linear(128, 64),
+            nn.BatchNorm1d(64),
+            # nn.Dropout(0.3),
             nn.ReLU(),
-            nn.Dropout(0.3),
             nn.Linear(64, 1),
         )
 

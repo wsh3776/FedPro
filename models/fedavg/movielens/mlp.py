@@ -15,11 +15,13 @@ class MLP(nn.Module):
         self.movie_id_embed = nn.Embedding(3883, 128)
         self.fc = nn.Sequential(
             nn.Linear(128 * 2, 128),
+            nn.BatchNorm1d(128),
+            # nn.Dropout(0.3),
             nn.ReLU(),
-            nn.Dropout(0.3),
             nn.Linear(128, 64),
+            nn.BatchNorm1d(64),
+            # nn.Dropout(0.3),
             nn.ReLU(),
-            nn.Dropout(0.3),
             nn.Linear(64, 1),
         )
         # https://zhuanlan.zhihu.com/p/59800597

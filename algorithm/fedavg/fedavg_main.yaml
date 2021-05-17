@@ -1,20 +1,26 @@
 program: fedavg_main.py
 project: wb_sweep
-method: bayes
+method: random
 metric:
   goal: minimize
-  name: test/loss
+  name: test/acc
 parameters:
+  model:
+    distribution: categorical
+    values:
+      - mlp
+  notes:
+    distribution: categorical
+    values:
+      - neg2pos_1_test
+  partition_method:
+    distribution: categorical
+    values:
+      - homo
   batch_size:
     distribution: int_uniform
     max: 128
-    min: 32
-  client_num_in_total:
-    distribution: constant
-    value: 200
-  client_num_per_round:
-    distribution: constant
-    value: 40
+    min: 16
   client_optimizer:
     distribution: categorical
     values:
@@ -23,55 +29,44 @@ parameters:
     distribution: categorical
     values:
     - movielens
-  decay_step:
-    distribution: int_uniform
-    max: 40
-    min: 10
   device:
     distribution: categorical
     values:
     - cuda
   early_stop:
     distribution: int_uniform
-    max: 100
-    min: 25
+    max: 40
+    min: 10
   epoch:
     distribution: int_uniform
-    max: 4
-    min: 1
+    max: 6
+    min: 2
   eval_interval:
-    distribution: int_uniform
-    max: 4
-    min: 1
+    distribution: constant
+    value: 4
   lr:
-    distribution: uniform
-    max: 0.006
-    min: 0.0015
+    values: [1e-5, 5e-5, 0.0001, 0.0003, 0.0005, 0.001, 0.003, 0.01, 0.03]
   lr_decay:
     distribution: uniform
-    max: 1.992
-    min: 0.498
-  model:
-    distribution: categorical
-    values:
-    - mlp
-  notes:
-    distribution: categorical
-    values:
-    - neg2pos_1_test
-  num_rounds:
-    distribution: int_uniform
-    max: 1000
-    min: 250
-  partition_method:
-    distribution: categorical
-    values:
-    - homo
-  seed:
-    distribution: int_uniform
-    max: 84
-    min: 21
+    max: 0.999
+    min: 0.798
+  decay_step:
+    distribution: constant
+    max: 40
+    min: 10
   wandb_mode:
     distribution: categorical
     values:
     - run
+  client_num_in_total:
+    distribution: constant
+    value: 200
+  client_num_per_round:
+    distribution: constant
+    value: 40
+  num_rounds:
+    distribution: constant
+    value: 500
+  seed:
+    distribution: constant
+    value: 42

@@ -117,9 +117,9 @@ class Server:
             for i in range(len(updates)):
                 client_params, n_k = updates[i]
                 if i == 0:
-                    new_params[key] = client_params[key] * n_k / n
+                    new_params[key] = (client_params[key] * n_k).true_divide(n)
                 else:
-                    new_params[key] += client_params[key] * n_k / n
+                    new_params[key] += (client_params[key] * n_k).true_divide(n)
 
         self.global_params = new_params
         return self

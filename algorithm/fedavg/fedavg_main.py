@@ -14,7 +14,7 @@ from algorithm.fedavg.server import Server
 def parse_args():
     # args default values
     config = {
-        "model": 'lr',
+        "model": 'mlp',
         "dataset": 'movielens',
         "client_num_in_total": 200,
         "client_num_per_round": 40,
@@ -144,7 +144,7 @@ if __name__ == '__main__':
     # Reproduction : select clients per round, dataloader shuffle, model parameter init...
     setup_seed(args.seed)
 
-    wandb.init(project="HYPERS_CTR",
+    wandb.init(project="sweep",
                name=str(args.partition_method)[:2].upper() + "-" + str(args.model)
                     + "-e_" + str(args.epoch)
                     + "-b_" + str(args.batch_size) + "-lr_" + str(args.lr) + "-"
