@@ -81,7 +81,11 @@ class Client:
         return self.get_params(), num_samples, sample_loss
 
     def test(self, dataset: str):
-        """在本地模型上对train和test数据集进行测试,返回准确率 + loss"""
+        """
+        在本地模型上对train和test数据集进行测试,返回准确率 + loss
+        :param dataset: string. Including "train"/"test"
+        :return:
+        """
         model = self.model
         model.eval()  # 关闭Dropout, 使用测试模式的BatchNorm
         model.to(self.device)

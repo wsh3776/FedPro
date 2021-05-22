@@ -14,14 +14,14 @@ from algorithm.fedavg.server import Server
 def parse_args():
     # args default values
     config = {
-        "model": 'lr',
+        "model": 'widedeep',
         "dataset": 'movielens',
         "client_num_in_total": 200,
         "client_num_per_round": 40,
         "num_rounds": 500,
-        "partition_method": 'homo',
+        "partition_method": 'centralized',
         "client_optimizer": "adam",
-        "lr": 0.003,
+        "lr": 0.01,
         "batch_size": 64,
         "epoch": 2,
         "eval_interval": 2,
@@ -31,7 +31,7 @@ def parse_args():
         "decay_step": 20,
         "early_stop": 50,
         "wandb_mode": 'run',
-        "notes": 'neg2pos_1_test',
+        "notes": 'n2p_1',
     }
 
     config_mnist = {
@@ -144,7 +144,7 @@ if __name__ == '__main__':
     # Reproduction : select clients per round, dataloader shuffle, model parameter init...
     setup_seed(args.seed)
 
-    wandb.init(project="sweep",
+    wandb.init(project="HYPERS_CTR",
                name=str(args.partition_method)[:2].upper() + "-" + str(args.model)
                     + "-e_" + str(args.epoch)
                     + "-b_" + str(args.batch_size) + "-lr_" + str(args.lr) + "-"

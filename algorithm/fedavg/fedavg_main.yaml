@@ -18,9 +18,7 @@ parameters:
     values:
       - homo
   batch_size:
-    distribution: int_uniform
-    max: 128
-    min: 16
+    values: [16, 32, 48, 64, 96, 128, 256]
   client_optimizer:
     distribution: categorical
     values:
@@ -34,26 +32,23 @@ parameters:
     values:
     - cuda
   early_stop:
-    distribution: int_uniform
-    max: 40
-    min: 10
+    distribution: constant
+    value: 20
   epoch:
     distribution: int_uniform
     max: 6
     min: 2
   eval_interval:
     distribution: constant
-    value: 4
+    value: 2
   lr:
     values: [1e-5, 5e-5, 0.0001, 0.0003, 0.0005, 0.001, 0.003, 0.01, 0.03]
   lr_decay:
-    distribution: uniform
-    max: 0.999
-    min: 0.798
+    distribution: constant
+    value: 0.998
   decay_step:
     distribution: constant
-    max: 40
-    min: 10
+    value: 20
   wandb_mode:
     distribution: categorical
     values:
